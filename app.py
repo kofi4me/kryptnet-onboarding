@@ -107,6 +107,13 @@ SERVICE_OPTIONS = [
 ]
 
 
+def ensure_database_tables():
+    # Keep migrations as the primary schema workflow, but bootstrap the core
+    # table defensively in environments where the start command skips them.
+    with app.app_context():
+        db.create_all()
+
+
 def calculate_risk_score(antivirus, backups, mfa):
     score = 0
     if not antivirus:
@@ -376,6 +383,10 @@ def healthcheck():
         ),
         status_code,
     )
+
+
+ensure_database_tables()
+
 
 if __name__ == "__main__":
     app.run(debug=True)
