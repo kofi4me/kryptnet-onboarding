@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}KryptNet Client Onboarding{% endblock %}</title>
+    <style>
+        body { font-family: Arial, sans-serif; background: #f8fafc; margin: 0; color: #0f172a; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
+        .container.narrow { max-width: 980px; padding: 32px 20px; }
+        .container.wide { max-width: 1180px; padding: 32px 20px; }
+        .panel, .hero { background: white; border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+        .hero { padding: 40px; }
+        .panel { padding: 28px; }
+        .logo-wrap { margin-bottom: 24px; }
+        .logo { max-width: 220px; height: auto; display: block; }
+        h1 { margin-top: 0; }
+        h2 { margin-top: 0; }
+        .page-title { font-size: 2.2rem; }
+        .btn { display: inline-block; padding: 12px 18px; border: none; border-radius: 12px; background: #0f172a; color: white; text-decoration: none; font-weight: bold; cursor: pointer; }
+        .muted { color: #475569; line-height: 1.6; }
+        .note { margin-top: 14px; font-size: 0.95rem; color: #64748b; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 24px; }
+        .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); }
+        .section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
+        label { display: block; font-weight: bold; margin-bottom: 6px; }
+        input[type=text], input[type=email], input[type=number], textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; }
+        textarea { min-height: 96px; }
+        .error { color: #b91c1c; font-size: 0.92rem; margin-top: 6px; }
+        .checkbox-group { display: grid; gap: 10px; }
+        .service-box, .security-box { padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; }
+        .hint { background: #eff6ff; color: #1e3a8a; border-radius: 12px; padding: 14px; margin-bottom: 18px; }
+        .warning { background: #fff7ed; color: #9a3412; border-radius: 12px; padding: 14px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 18px; }
+        th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
+        th { background: #f8fafc; }
+        .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #e2e8f0; font-weight: bold; }
+        .small { color: #475569; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    {% block body %}{% endblock %}
+</body>
+</html>

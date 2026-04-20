@@ -3,3 +3,6 @@ __pycache__/
 *.pyc
 .env
 kryptnet_onboarding.db
+instance/*.db
+server.out.log
+server.err.log

@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}KryptNet Admin - Submissions{% endblock %}
+
+{% block body %}
+<div class="container wide">
+    <div class="panel">
+        <h1>KryptNet Client Onboarding Submissions</h1>
+        <p class="small">This page lists all onboarding records stored in the database.</p>
+        <p>
+            <a class="btn" href="/onboarding">Create New Submission</a>
+            <form method="POST" action="/admin/logout" style="display: inline-block; margin-left: 10px;">
+                <button class="btn" type="submit">Log Out</button>
+            </form>
+        </p>
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Business</th>
+                    <th>Contact</th>
+                    <th>Email</th>
+                    <th>Services</th>
+                    <th>Risk</th>
+                    <th>Created</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for record in records %}
+                <tr>
+                    <td>{{ record.id }}</td>
+                    <td>{{ record.business_name }}</td>
+                    <td>{{ record.contact_name }}<br><span class="small">{{ record.phone }}</span></td>
+                    <td>{{ record.email }}</td>
+                    <td>{{ record.selected_services }}</td>
+                    <td><span class="badge">{{ record.risk_level }} ({{ record.risk_score }})</span></td>
+                    <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="7">No submissions yet.</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

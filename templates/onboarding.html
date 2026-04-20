@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+
+{% block title %}KryptNet Onboarding Form{% endblock %}
+
+{% block body %}
+<div class="container narrow">
+    <div class="panel">
+        <h1>KryptNet Client Onboarding Form</h1>
+        <p class="muted">Complete this intake form to begin onboarding with KryptNet managed services.</p>
+        <div class="hint">This version stores submissions in a database and calculates a lightweight risk score based on antivirus, backups, and MFA.</div>
+        <form method="POST">
+            <div class="section">
+                <h2>1. Business Profile</h2>
+                <div class="form-grid">
+                    <div>
+                        <label>Business Name *</label>
+                        <input type="text" name="business_name" value="{{ form.get('business_name', '') }}">
+                        {% if errors.get('business_name') %}<div class="error">{{ errors.get('business_name') }}</div>{% endif %}
+                    </div>
+                    <div>
+                        <label>Industry</label>
+                        <input type="text" name="industry" value="{{ form.get('industry', '') }}">
+                    </div>
+                    <div>
+                        <label>Contact Name *</label>
+                        <input type="text" name="contact_name" value="{{ form.get('contact_name', '') }}">
+                        {% if errors.get('contact_name') %}<div class="error">{{ errors.get('contact_name') }}</div>{% endif %}
+                    </div>
+                    <div>
+                        <label>Email *</label>
+                        <input type="email" name="email" value="{{ form.get('email', '') }}">
+                        {% if errors.get('email') %}<div class="error">{{ errors.get('email') }}</div>{% endif %}
+                    </div>
+                    <div>
+                        <label>Phone *</label>
+                        <input type="text" name="phone" value="{{ form.get('phone', '') }}">
+                        {% if errors.get('phone') %}<div class="error">{{ errors.get('phone') }}</div>{% endif %}
+                    </div>
+                    <div>
+                        <label>Number of Employees</label>
+                        <input type="number" name="employees" value="{{ form.get('employees', '') }}">
+                    </div>
+                </div>
+                <div style="margin-top: 16px;">
+                    <label>Business Address</label>
+                    <textarea name="address">{{ form.get('address', '') }}</textarea>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>2. Technical Environment</h2>
+                <div class="form-grid">
+                    <div>
+                        <label>Number of Computers *</label>
+                        <input type="number" name="computers" value="{{ form.get('computers', '') }}">
+                        {% if errors.get('computers') %}<div class="error">{{ errors.get('computers') }}</div>{% endif %}
+                    </div>
+                    <div>
+                        <label>Number of Servers</label>
+                        <input type="number" name="servers" value="{{ form.get('servers', '') }}">
+                    </div>
+                    <div>
+                        <label>Email Platform *</label>
+                        <input type="text" name="email_platform" value="{{ form.get('email_platform', '') }}" placeholder="Microsoft 365, Google Workspace">
+                        {% if errors.get('email_platform') %}<div class="error">{{ errors.get('email_platform') }}</div>{% endif %}
+                    </div>
+                    <div>
+                        <label>Internet Provider</label>
+                        <input type="text" name="internet_provider" value="{{ form.get('internet_provider', '') }}">
+                    </div>
+                </div>
+                <div class="form-grid" style="margin-top: 16px;">
+                    <div class="security-box">
+                        <label><input type="checkbox" name="antivirus" {% if form.get('antivirus') %}checked{% endif %}> Antivirus / EDR in place</label>
+                    </div>
+                    <div class="security-box">
+                        <label><input type="checkbox" name="backups" {% if form.get('backups') %}checked{% endif %}> Backups enabled</label>
+                    </div>
+                    <div class="security-box">
+                        <label><input type="checkbox" name="mfa" {% if form.get('mfa') %}checked{% endif %}> MFA enabled</label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>3. Requested Services</h2>
+                <div class="checkbox-group">
+                    {% for service in service_options %}
+                    <div class="service-box">
+                        <label>
+                            <input type="checkbox" name="selected_services" value="{{ service }}" {% if service in form.getlist('selected_services') %}checked{% endif %}>
+                            {{ service }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if errors.get('selected_services') %}<div class="error">{{ errors.get('selected_services') }}</div>{% endif %}
+                <div style="margin-top: 16px;">
+                    <label>Additional Notes</label>
+                    <textarea name="notes">{{ form.get('notes', '') }}</textarea>
+                </div>
+            </div>
+
+            <div class="section">
+                <h2>4. Authorization</h2>
+                <div class="service-box">
+                    <label>
+                        <input type="checkbox" name="authorized" {% if form.get('authorized') %}checked{% endif %}>
+                        I authorize KryptNet to review this information and begin onboarding preparation.
+                    </label>
+                </div>
+                {% if errors.get('authorized') %}<div class="error">{{ errors.get('authorized') }}</div>{% endif %}
+            </div>
+
+            <div style="margin-top: 24px;">
+                <button class="btn" type="submit">Submit Onboarding</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
