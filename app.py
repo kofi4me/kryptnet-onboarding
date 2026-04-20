@@ -1,7 +1,9 @@
 from datetime import datetime
+from email.message import EmailMessage
 import os
 import re
 import secrets
+import smtplib
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_migrate import Migrate
@@ -36,6 +38,16 @@ migrate = Migrate(app, db)
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me-now")
 ADMIN_SESSION_KEY = "admin_authenticated"
+SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "").strip()
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "KryptNet")
+ADMIN_NOTIFICATION_EMAIL = os.getenv(
+    "ADMIN_NOTIFICATION_EMAIL", "support@kryptnet.org"
+).strip()
 
 LOGO_CANDIDATES = (
     "kryptnet-logo.png",
@@ -112,6 +124,126 @@ def ensure_database_tables():
     # table defensively in environments where the start command skips them.
     with app.app_context():
         db.create_all()
+
+
+def smtp_is_configured():
+    return all([SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL])
+
+
+def build_client_confirmation_email(record):
+    message = EmailMessage()
+    message["Subject"] = "KryptNet onboarding submission received"
+    message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+    message["To"] = record.email
+
+    services = record.selected_services.split(",") if record.selected_services else []
+    services_text = ", ".join(services) if services else "Not specified"
+
+    body = f"""Hello {record.contact_name},
+
+Thank you for submitting your onboarding information to KryptNet.
+
+We have received your request for:
+- Business: {record.business_name}
+- Contact email: {record.email}
+- Phone: {record.phone}
+- Services requested: {services_text}
+- Risk level: {record.risk_level}
+
+Our team will review your submission and follow up with next steps.
+
+Thank you,
+KryptNet
+"""
+    message.set_content(body)
+    return message
+
+
+def build_admin_notification_email(record):
+    message = EmailMessage()
+    message["Subject"] = f"New KryptNet onboarding submission: {record.business_name}"
+    message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+    message["To"] = ADMIN_NOTIFICATION_EMAIL
+
+    services = record.selected_services.split(",") if record.selected_services else []
+    services_text = ", ".join(services) if services else "Not specified"
+
+    body = f"""A new onboarding submission has been received.
+
+Business: {record.business_name}
+Industry: {record.industry or 'Not provided'}
+Contact name: {record.contact_name}
+Contact email: {record.email}
+Phone: {record.phone}
+Address: {record.address or 'Not provided'}
+Employees: {record.employees if record.employees is not None else 'Not provided'}
+Computers: {record.computers if record.computers is not None else 'Not provided'}
+Servers: {record.servers if record.servers is not None else 'Not provided'}
+Email platform: {record.email_platform or 'Not provided'}
+Internet provider: {record.internet_provider or 'Not provided'}
+Antivirus: {"Yes" if record.antivirus else "No"}
+Backups: {"Yes" if record.backups else "No"}
+MFA: {"Yes" if record.mfa else "No"}
+Services requested: {services_text}
+Risk score: {record.risk_score}
+Risk level: {record.risk_level}
+Notes: {record.notes or 'None'}
+Submitted at: {record.created_at.isoformat()}
+"""
+    message.set_content(body)
+    return message
+
+
+def send_client_confirmation_email(record):
+    if not smtp_is_configured():
+        app.logger.warning(
+            "SMTP is not configured; skipping confirmation email for submission %s",
+            record.id,
+        )
+        return "skipped"
+
+    message = build_client_confirmation_email(record)
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            smtp.ehlo()
+            if SMTP_USE_TLS:
+                smtp.starttls()
+                smtp.ehlo()
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(message)
+        return "sent"
+    except Exception:
+        app.logger.exception(
+            "Failed to send confirmation email for submission %s", record.id
+        )
+        return "failed"
+
+
+def send_admin_notification_email(record):
+    if not smtp_is_configured():
+        app.logger.warning(
+            "SMTP is not configured; skipping admin notification email for submission %s",
+            record.id,
+        )
+        return "skipped"
+
+    message = build_admin_notification_email(record)
+
+    try:
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            smtp.ehlo()
+            if SMTP_USE_TLS:
+                smtp.starttls()
+                smtp.ehlo()
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(message)
+        return "sent"
+    except Exception:
+        app.logger.exception(
+            "Failed to send admin notification email for submission %s", record.id
+        )
+        return "failed"
 
 
 def calculate_risk_score(antivirus, backups, mfa):
@@ -291,7 +423,16 @@ def onboarding():
 
         db.session.add(record)
         db.session.commit()
-        return redirect(url_for("submission_success", submission_id=record.id))
+        email_status = send_client_confirmation_email(record)
+        admin_email_status = send_admin_notification_email(record)
+        return redirect(
+            url_for(
+                "submission_success",
+                submission_id=record.id,
+                email_status=email_status,
+                admin_email_status=admin_email_status,
+            )
+        )
 
     return render_template(
         "onboarding.html",
@@ -304,7 +445,15 @@ def onboarding():
 @app.route("/success/<int:submission_id>")
 def submission_success(submission_id):
     record = ClientOnboarding.query.get_or_404(submission_id)
-    return render_template("success.html", record=record)
+    email_status = request.args.get("email_status", "unknown")
+    admin_email_status = request.args.get("admin_email_status", "unknown")
+    return render_template(
+        "success.html",
+        record=record,
+        email_status=email_status,
+        admin_email_status=admin_email_status,
+        admin_notification_email=ADMIN_NOTIFICATION_EMAIL,
+    )
 
 
 @app.route("/admin/submissions")

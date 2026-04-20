@@ -44,6 +44,10 @@ python app.py
 - `DATABASE_URL`: Defaults to `sqlite:///kryptnet_onboarding.db`.
 - `FLASK_ENV`: Set to `production` to enable secure session cookies behind HTTPS.
 - `FLASK_APP`: Use `app.py` when running Flask CLI commands.
+- `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`: SMTP settings for client confirmation emails.
+- `SMTP_USE_TLS`: Set to `true` for standard STARTTLS SMTP.
+- `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`: Sender identity used for confirmation emails.
+- `ADMIN_NOTIFICATION_EMAIL`: Address that receives a copy of every onboarding submission. Defaults to `support@kryptnet.org`.
 
 ## Deployment
 
@@ -66,6 +70,15 @@ Notes:
 - Admin login: `/admin/login`
 - Admin submissions view: `/admin/submissions`
 - Protected API: `/api/submissions`
+
+## Client email confirmations
+
+When SMTP settings are configured, the app sends:
+
+- a confirmation email to the client email address submitted in the onboarding form
+- an admin copy of the onboarding report to `support@kryptnet.org` by default
+
+If SMTP is not configured, the submission still succeeds and the success page will indicate that email sending was skipped.
 
 ## Health checks
 
