@@ -429,13 +429,13 @@ def onboarding():
         authorized = request.form.get("authorized") == "on"
 
         validate_required_text(errors, "business_name", business_name, "Business name", 200)
-        validate_optional_text(errors, "industry", industry, "Industry", 120)
+        validate_required_text(errors, "industry", industry, "Industry", 120)
         validate_required_text(errors, "contact_name", contact_name, "Contact name", 150)
         validate_required_text(errors, "email", email, "Email", 150)
         validate_required_text(errors, "phone", phone, "Phone", 50)
-        validate_optional_text(errors, "address", address, "Business address", 2000)
+        validate_required_text(errors, "address", address, "Business address", 2000)
         validate_required_text(errors, "email_platform", email_platform, "Email platform", 120)
-        validate_optional_text(errors, "internet_provider", internet_provider, "Internet provider", 120)
+        validate_required_text(errors, "internet_provider", internet_provider, "Internet provider", 120)
         validate_optional_text(errors, "notes", notes, "Additional notes", 4000)
 
         if email and not EMAIL_REGEX.match(email):
@@ -446,17 +446,15 @@ def onboarding():
             errors["phone"] = "Enter a valid phone number with at least 10 digits."
 
         employees_val = validate_non_negative_integer(
-            errors, "employees", employees, "Number of employees"
+            errors, "employees", employees, "Number of employees", required=True
         )
         computers_val = validate_non_negative_integer(
             errors, "computers", computers, "Number of computers", required=True
         )
         servers_val = validate_non_negative_integer(
-            errors, "servers", servers, "Number of servers"
+            errors, "servers", servers, "Number of servers", required=True
         )
 
-        if not selected_services:
-            errors["selected_services"] = "Select at least one service."
         if not authorized:
             errors["authorized"] = (
                 "You must authorize KryptNet to review the submission."
