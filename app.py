@@ -1,5 +1,6 @@
 from datetime import datetime
 from email.message import EmailMessage
+from io import BytesIO
 import os
 import re
 import secrets
@@ -8,6 +9,8 @@ import smtplib
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
+from reportlab.lib.pagesizes import letter
+from reportlab.pdfgen import canvas
 from werkzeug.datastructures import MultiDict
 from werkzeug.middleware.proxy_fix import ProxyFix
 
@@ -157,6 +160,14 @@ Thank you,
 KryptNet
 """
     message.set_content(body)
+    pdf_bytes = generate_onboarding_report_pdf(record)
+    filename = f"kryptnet-onboarding-report-{record.id}.pdf"
+    message.add_attachment(
+        pdf_bytes,
+        maintype="application",
+        subtype="pdf",
+        filename=filename,
+    )
     return message
 
 
@@ -193,6 +204,63 @@ Submitted at: {record.created_at.isoformat()}
 """
     message.set_content(body)
     return message
+
+
+def generate_onboarding_report_pdf(record):
+    buffer = BytesIO()
+    pdf = canvas.Canvas(buffer, pagesize=letter)
+    width, height = letter
+    y = height - 50
+
+    def write_line(text, gap=18):
+        nonlocal y
+        if y < 60:
+            pdf.showPage()
+            y = height - 50
+        pdf.drawString(50, y, str(text))
+        y -= gap
+
+    services = record.selected_services.split(",") if record.selected_services else []
+    services_text = ", ".join(services) if services else "Not specified"
+
+    pdf.setTitle(f"KryptNet Onboarding Report {record.id}")
+    pdf.setFont("Helvetica-Bold", 18)
+    write_line("KryptNet Onboarding Report", gap=28)
+
+    pdf.setFont("Helvetica", 11)
+    report_lines = [
+        f"Submission ID: {record.id}",
+        f"Submitted At: {record.created_at.isoformat()}",
+        "",
+        f"Business: {record.business_name}",
+        f"Industry: {record.industry or 'Not provided'}",
+        f"Contact Name: {record.contact_name}",
+        f"Email: {record.email}",
+        f"Phone: {record.phone}",
+        f"Address: {record.address or 'Not provided'}",
+        "",
+        f"Employees: {record.employees if record.employees is not None else 'Not provided'}",
+        f"Computers: {record.computers if record.computers is not None else 'Not provided'}",
+        f"Servers: {record.servers if record.servers is not None else 'Not provided'}",
+        f"Email Platform: {record.email_platform or 'Not provided'}",
+        f"Internet Provider: {record.internet_provider or 'Not provided'}",
+        "",
+        f"Antivirus: {'Yes' if record.antivirus else 'No'}",
+        f"Backups: {'Yes' if record.backups else 'No'}",
+        f"MFA: {'Yes' if record.mfa else 'No'}",
+        f"Services Requested: {services_text}",
+        f"Risk Score: {record.risk_score}/100",
+        f"Risk Level: {record.risk_level}",
+        "",
+        f"Notes: {record.notes or 'None'}",
+    ]
+
+    for line in report_lines:
+        write_line(line)
+
+    pdf.save()
+    buffer.seek(0)
+    return buffer.read()
 
 
 def send_client_confirmation_email(record):
