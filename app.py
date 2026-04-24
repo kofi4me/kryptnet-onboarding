@@ -43,6 +43,7 @@ SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
+SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "").strip()
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "KryptNet")
 ADMIN_NOTIFICATION_EMAIL = os.getenv(
@@ -205,11 +206,13 @@ def send_client_confirmation_email(record):
     message = build_client_confirmation_email(record)
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
-            smtp.ehlo()
-            if SMTP_USE_TLS:
-                smtp.starttls()
+        smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
+        with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            if not SMTP_USE_SSL:
                 smtp.ehlo()
+                if SMTP_USE_TLS:
+                    smtp.starttls()
+                    smtp.ehlo()
             smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
             smtp.send_message(message)
         return "sent"
@@ -231,11 +234,13 @@ def send_admin_notification_email(record):
     message = build_admin_notification_email(record)
 
     try:
-        with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
-            smtp.ehlo()
-            if SMTP_USE_TLS:
-                smtp.starttls()
+        smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
+        with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            if not SMTP_USE_SSL:
                 smtp.ehlo()
+                if SMTP_USE_TLS:
+                    smtp.starttls()
+                    smtp.ehlo()
             smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
             smtp.send_message(message)
         return "sent"

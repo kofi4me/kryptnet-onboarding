@@ -46,6 +46,7 @@ python app.py
 - `FLASK_APP`: Use `app.py` when running Flask CLI commands.
 - `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`: SMTP settings for client confirmation emails.
 - `SMTP_USE_TLS`: Set to `true` for standard STARTTLS SMTP.
+- `SMTP_USE_SSL`: Set to `true` for implicit SSL SMTP, such as cPanel setups using port `465`.
 - `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`: Sender identity used for confirmation emails.
 - `ADMIN_NOTIFICATION_EMAIL`: Address that receives a copy of every onboarding submission. Defaults to `support@kryptnet.org`.
 
