@@ -436,7 +436,7 @@ def onboarding():
         validate_required_text(errors, "address", address, "Business address", 2000)
         validate_required_text(errors, "email_platform", email_platform, "Email platform", 120)
         validate_required_text(errors, "internet_provider", internet_provider, "Internet provider", 120)
-        validate_optional_text(errors, "notes", notes, "Additional notes", 4000)
+        validate_required_text(errors, "notes", notes, "Additional notes", 4000)
 
         if email and not EMAIL_REGEX.match(email):
             errors["email"] = "Enter a valid email address."
@@ -455,6 +455,8 @@ def onboarding():
             errors, "servers", servers, "Number of servers", required=True
         )
 
+        if not selected_services:
+            errors["selected_services"] = "Select at least one service."
         if not authorized:
             errors["authorized"] = (
                 "You must authorize KryptNet to review the submission."
