@@ -38,8 +38,8 @@ app.config["SESSION_COOKIE_SECURE"] = os.getenv("FLASK_ENV") == "production"
 db = SQLAlchemy(app)
 migrate = Migrate(app, db)
 
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me-now")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin").strip()
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me-now").strip()
 ADMIN_SESSION_KEY = "admin_authenticated"
 ADMIN_LOGIN_ATTEMPTS = {}
 ADMIN_MAX_LOGIN_ATTEMPTS = 5
@@ -681,7 +681,7 @@ def admin_login():
             )
 
         username = request.form.get("username", "").strip()
-        password = request.form.get("password", "")
+        password = request.form.get("password", "").strip()
 
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             clear_admin_login_attempts(client_key)
@@ -736,6 +736,17 @@ def healthcheck():
             }
         ),
         status_code,
+    )
+
+
+@app.route("/admin-config-check")
+def admin_config_check():
+    return jsonify(
+        {
+            "admin_password_configured": ADMIN_PASSWORD != "change-me-now",
+            "admin_username_configured": ADMIN_USERNAME != "admin",
+            "admin_username_length": len(ADMIN_USERNAME),
+        }
     )
 
 
