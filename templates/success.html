@@ -7,20 +7,7 @@
     <div class="panel">
         <h1>Onboarding Submitted Successfully</h1>
         <p>KryptNet has captured the client onboarding record.</p>
-        {% if email_status == "sent" %}
-        <div class="hint">A confirmation email has been sent to {{ record.email }}.</div>
-        {% elif email_status == "failed" %}
-        <div class="warning">The submission was saved, but the confirmation email could not be sent.</div>
-        {% elif email_status == "skipped" %}
-        <div class="warning">The submission was saved, but confirmation email is not configured yet.</div>
-        {% endif %}
-        {% if admin_email_status == "sent" %}
-        <div class="hint">A copy of this report has been emailed to {{ admin_notification_email }}.</div>
-        {% elif admin_email_status == "failed" %}
-        <div class="warning">The submission was saved, but the admin notification email could not be sent.</div>
-        {% elif admin_email_status == "skipped" %}
-        <div class="warning">The submission was saved, but admin email delivery is not configured yet.</div>
-        {% endif %}
+        <div class="hint"><strong>Risk Evaluation:</strong> KryptNet reviewed the security controls you selected, measured your environment against essential cybersecurity readiness areas, and generated the readiness score below to help identify your current risk status and next protection priorities.</div>
         <div class="grid">
             <div class="card">
                 <h3>Client Summary</h3>
