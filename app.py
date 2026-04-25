@@ -117,6 +117,10 @@ class ClientOnboarding(db.Model):
             "authorized": self.authorized,
             "risk_score": self.risk_score,
             "risk_level": self.risk_level,
+            "security_readiness_score": self.risk_score,
+            "readiness_summary": build_readiness_summary(
+                self.risk_score or 0, self.risk_level
+            ),
             "created_at": self.created_at.isoformat(),
         }
 
@@ -145,6 +149,21 @@ RISK_CONTROL_OPTIONS = [
     "Logging & Monitoring",
 ]
 
+RISK_CONTROL_WEIGHTS = {
+    "Multi-Factor Authentication (MFA)": 12,
+    "Backup & Disaster Recovery": 12,
+    "Endpoint Protection (Antivirus/EDR)": 12,
+    "Email Security & Phishing Protection": 10,
+    "Firewall & Network Security": 10,
+    "Employee Security Awareness Training": 8,
+    "Patch Management & Updates": 8,
+    "Access Control (Least Privilege)": 8,
+    "Incident Response Plan": 8,
+    "Logging & Monitoring": 8,
+    "Vulnerability Scanning": 7,
+    "Data Encryption": 7,
+}
+
 
 def ensure_database_tables():
     # Keep migrations as the primary schema workflow, but bootstrap the core
@@ -167,6 +186,7 @@ def build_client_confirmation_email(record):
     services_text = ", ".join(services) if services else "Not specified"
     risk_controls = split_csv(record.risk_controls)
     risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
+    readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
 
     body = f"""Hello {record.contact_name},
 
@@ -177,7 +197,9 @@ We have received your request for:
 - Contact email: {record.email}
 - Phone: {record.phone}
 - Services requested: {services_text}
+- Security readiness score: {record.risk_score}/100
 - Risk level: {record.risk_level}
+- Readiness summary: {readiness_summary}
 
 Our team will review your submission and follow up with next steps.
 
@@ -204,6 +226,9 @@ def build_admin_notification_email(record):
 
     services = split_csv(record.selected_services)
     services_text = ", ".join(services) if services else "Not specified"
+    risk_controls = split_csv(record.risk_controls)
+    risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
+    readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
 
     body = f"""A new onboarding submission has been received.
 
@@ -221,8 +246,9 @@ Internet provider: {record.internet_provider or 'Not provided'}
 Number of WiFi AP: {record.wifi_aps if record.wifi_aps is not None else 'Not provided'}
 Risk evaluation controls: {risk_controls_text}
 Services requested: {services_text}
-Risk score: {record.risk_score}
+Security readiness score: {record.risk_score}/100
 Risk level: {record.risk_level}
+Readiness summary: {readiness_summary}
 Notes: {record.notes or 'None'}
 Submitted at: {record.created_at.isoformat()}
 """
@@ -248,6 +274,7 @@ def generate_onboarding_report_pdf(record):
     services_text = ", ".join(services) if services else "Not specified"
     risk_controls = split_csv(record.risk_controls)
     risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
+    readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
 
     pdf.setTitle(f"KryptNet Onboarding Report {record.id}")
     pdf.setFont("Helvetica-Bold", 18)
@@ -274,8 +301,9 @@ def generate_onboarding_report_pdf(record):
         "",
         f"Risk Evaluation Controls: {risk_controls_text}",
         f"Services Requested: {services_text}",
-        f"Risk Score: {record.risk_score}/100",
+        f"Security Readiness Score: {record.risk_score}/100",
         f"Risk Level: {record.risk_level}",
+        f"Readiness Summary: {readiness_summary}",
         "",
         f"Notes: {record.notes or 'None'}",
     ]
@@ -345,19 +373,30 @@ def send_admin_notification_email(record):
 
 
 def calculate_risk_score(selected_controls):
-    missing_count = len(RISK_CONTROL_OPTIONS) - len(selected_controls)
-    score = round((missing_count / len(RISK_CONTROL_OPTIONS)) * 100)
+    total_weight = sum(RISK_CONTROL_WEIGHTS.values())
+    selected_weight = sum(RISK_CONTROL_WEIGHTS.get(control, 0) for control in selected_controls)
+    score = round((selected_weight / total_weight) * 100)
 
-    if score <= 20:
+    if score >= 85:
         level = "Low"
-    elif score <= 40:
+    elif score >= 70:
         level = "Moderate"
-    elif score <= 70:
+    elif score >= 50:
         level = "High"
     else:
         level = "Critical"
 
     return score, level
+
+
+def build_readiness_summary(score, risk_level):
+    if score >= 85:
+        return "Strong security readiness. Core controls appear well represented, with only minor gaps to review."
+    if score >= 70:
+        return "Good security readiness. The environment has several important controls, but selected gaps should be prioritized."
+    if score >= 50:
+        return "Developing security readiness. Key protections are present, but important safeguards need attention."
+    return "Limited security readiness. Critical controls appear missing and should be reviewed as onboarding priorities."
 
 
 def get_logo_filename():
@@ -548,12 +587,14 @@ def submission_success(submission_id):
     record = ClientOnboarding.query.get_or_404(submission_id)
     email_status = request.args.get("email_status", "unknown")
     admin_email_status = request.args.get("admin_email_status", "unknown")
+    readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
     return render_template(
         "success.html",
         record=record,
         email_status=email_status,
         admin_email_status=admin_email_status,
         admin_notification_email=ADMIN_NOTIFICATION_EMAIL,
+        readiness_summary=readiness_summary,
     )
 
 

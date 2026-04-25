@@ -31,9 +31,10 @@
                 <p><strong>Services:</strong> {{ record.selected_services.replace(',', ', ') }}</p>
             </div>
             <div class="card">
-                <h3>Risk Snapshot</h3>
-                <p><strong>Score:</strong> {{ record.risk_score }}/100</p>
-                <p><strong>Level:</strong> <span class="badge">{{ record.risk_level }}</span></p>
+                <h3>Security Readiness Snapshot</h3>
+                <p><strong>Readiness Score:</strong> {{ record.risk_score }}/100</p>
+                <p><strong>Risk Level:</strong> <span class="badge">{{ record.risk_level }}</span></p>
+                <p><strong>Summary:</strong> {{ readiness_summary }}</p>
                 <p><strong>Controls:</strong> {{ record.risk_controls.replace(',', ', ') if record.risk_controls else 'Not provided' }}</p>
             </div>
         </div>
