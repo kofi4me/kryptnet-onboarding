@@ -771,6 +771,18 @@ def admin_submissions():
     return render_template("admin.html", records=records)
 
 
+@app.route("/kryptnet-secure-review/submissions/<int:submission_id>/delete", methods=["POST"])
+def delete_submission(submission_id):
+    auth_redirect = require_admin()
+    if auth_redirect:
+        return auth_redirect
+
+    record = ClientOnboarding.query.get_or_404(submission_id)
+    db.session.delete(record)
+    db.session.commit()
+    return redirect(url_for("admin_submissions"))
+
+
 @app.route("/kryptnet-secure-review", methods=["GET", "POST"])
 def admin_login():
     if is_admin_authenticated():
