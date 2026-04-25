@@ -8,12 +8,6 @@
         <h1>KryptNet Admin Login</h1>
         <p class="muted">Sign in to view onboarding submissions and the submissions API.</p>
 
-        {% if using_default_credentials %}
-        <div class="warning">
-            Default admin credentials are still active. Set <strong>ADMIN_USERNAME</strong> and <strong>ADMIN_PASSWORD</strong> in the environment before production use.
-        </div>
-        {% endif %}
-
         {% if error %}
         <div class="error" style="margin-bottom: 16px;">{{ error }}</div>
         {% endif %}
