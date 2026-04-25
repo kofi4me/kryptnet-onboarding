@@ -5,38 +5,53 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}KryptNet Client Onboarding{% endblock %}</title>
     <style>
-        body { font-family: Arial, sans-serif; background: #f8fafc; margin: 0; color: #0f172a; }
+        :root {
+            --navy: #071126;
+            --navy-soft: #0d1b35;
+            --teal: #0fbead;
+            --teal-dark: #0b7f78;
+            --ink: #071126;
+            --muted: #475569;
+            --line: #cbd5e1;
+            --panel: #ffffff;
+            --page: #eef4f7;
+        }
+        body { font-family: Arial, sans-serif; background: var(--page); margin: 0; color: var(--ink); }
         .container { max-width: 1100px; margin: 0 auto; padding: 40px 20px; }
         .container.narrow { max-width: 980px; padding: 32px 20px; }
         .container.wide { max-width: 1180px; padding: 32px 20px; }
-        .panel, .hero { background: white; border-radius: 18px; box-shadow: 0 8px 24px rgba(0,0,0,0.06); }
+        .panel, .hero { background: var(--panel); border: 1px solid rgba(7,17,38,0.08); border-radius: 18px; box-shadow: 0 18px 45px rgba(7,17,38,0.10); }
         .hero { padding: 40px; }
-        .panel { padding: 28px; }
+        .panel { padding: 30px; }
         .logo-wrap { margin-bottom: 24px; }
         .logo { max-width: 220px; height: auto; display: block; }
         h1 { margin-top: 0; }
         h2 { margin-top: 0; }
         .page-title { font-size: 2.2rem; }
-        .btn { display: inline-block; padding: 12px 18px; border: none; border-radius: 12px; background: #0f172a; color: white; text-decoration: none; font-weight: bold; cursor: pointer; }
-        .muted { color: #475569; line-height: 1.6; }
+        .btn { display: inline-block; padding: 12px 18px; border: none; border-radius: 10px; background: var(--navy); color: white; text-decoration: none; font-weight: bold; cursor: pointer; box-shadow: 0 8px 18px rgba(7,17,38,0.16); }
+        .btn:hover { background: var(--navy-soft); }
+        .muted { color: var(--muted); line-height: 1.6; }
         .note { margin-top: 14px; font-size: 0.95rem; color: #64748b; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 18px; margin-top: 24px; }
         .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
-        .card { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 8px 24px rgba(0,0,0,0.05); }
-        .section { margin-top: 28px; padding-top: 20px; border-top: 1px solid #e2e8f0; }
-        label { display: block; font-weight: bold; margin-bottom: 6px; }
-        input[type=text], input[type=email], input[type=number], textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid #cbd5e1; border-radius: 10px; }
+        .card { background: white; border: 1px solid rgba(15,190,173,0.20); border-radius: 10px; padding: 20px; box-shadow: 0 10px 26px rgba(7,17,38,0.07); }
+        .section { margin-top: 30px; padding-top: 24px; border-top: 1px solid rgba(7,17,38,0.12); }
+        .section h2 { color: var(--navy); border-left: 5px solid var(--teal); padding-left: 12px; }
+        label { display: block; font-weight: bold; margin-bottom: 6px; color: var(--navy); }
+        input[type=text], input[type=email], input[type=number], textarea { width: 100%; box-sizing: border-box; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #fbfdfe; }
+        input[type=text]:focus, input[type=email]:focus, input[type=number]:focus, textarea:focus { outline: none; border-color: var(--teal); box-shadow: 0 0 0 3px rgba(15,190,173,0.14); }
         textarea { min-height: 96px; }
         .error { color: #b91c1c; font-size: 0.92rem; margin-top: 6px; }
         .checkbox-group { display: grid; gap: 10px; }
-        .service-box, .security-box { padding: 14px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; }
-        .hint { background: #eff6ff; color: #1e3a8a; border-radius: 12px; padding: 14px; margin-bottom: 18px; }
+        .service-box, .security-box { padding: 14px; border: 1px solid rgba(15,190,173,0.30); border-radius: 10px; background: #f8fcfc; }
+        .service-box:hover, .security-box:hover { border-color: var(--teal); background: #f1fbfa; }
+        .trust-copy, .hint { background: #e8fbf8; color: #064e49; border: 1px solid rgba(15,190,173,0.28); border-radius: 10px; padding: 14px; margin-bottom: 18px; }
         .warning { background: #fff7ed; color: #9a3412; border-radius: 12px; padding: 14px; margin-bottom: 18px; }
         table { width: 100%; border-collapse: collapse; margin-top: 18px; }
         th, td { text-align: left; padding: 12px; border-bottom: 1px solid #e2e8f0; vertical-align: top; }
         th { background: #f8fafc; }
-        .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #e2e8f0; font-weight: bold; }
-        .small { color: #475569; font-size: 0.9rem; }
+        .badge { display: inline-block; padding: 6px 10px; border-radius: 999px; background: #d8f7f3; color: #075e57; font-weight: bold; }
+        .small { color: var(--muted); font-size: 0.9rem; }
     </style>
 </head>
 <body>
