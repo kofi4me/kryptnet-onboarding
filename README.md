@@ -68,9 +68,9 @@ Notes:
 
 ## Admin access
 
-- Admin login: `/admin/login`
-- Admin submissions view: `/admin/submissions`
-- Protected API: `/api/submissions`
+- Admin login: `/kryptnet-secure-review`
+- Admin submissions view: `/kryptnet-secure-review/submissions`
+- Protected API: `/kryptnet-secure-review/api/submissions`
 
 ## Client email confirmations
 

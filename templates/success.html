@@ -19,11 +19,23 @@
             </div>
             <div class="card">
                 <h3>Security Readiness Snapshot</h3>
-                <p><strong>Readiness Score:</strong> {{ record.risk_score }}/100</p>
+                <p><strong>Readiness Score:</strong> {{ risk_score_percent }}</p>
                 <p><strong>Risk Level:</strong> <span class="badge">{{ record.risk_level }}</span></p>
                 <p><strong>Summary:</strong> {{ readiness_summary }}</p>
-                <p><strong>Controls:</strong> {{ record.risk_controls.replace(',', ', ') if record.risk_controls else 'Not provided' }}</p>
+                <p><strong>Controls selected:</strong> {{ assessment.selected_controls_text }}</p>
             </div>
+        </div>
+        <div class="card" style="margin-top: 24px;">
+            <h3>Potential Vulnerability Areas</h3>
+            <p class="muted">These are the security controls not selected in the risk evaluation. They may represent business risks that should be reviewed during onboarding.</p>
+            {% if assessment.exposure_lines %}
+                {% for exposure in assessment.exposure_lines %}
+                <p><strong>{{ exposure.split(':', 1)[0] }}:</strong>{{ exposure.split(':', 1)[1] }}</p>
+                {% endfor %}
+            {% else %}
+                <p>No major missing control exposures were identified from the selected answers.</p>
+            {% endif %}
+            <div class="hint"><strong>Recommended next step:</strong> {{ service_risk_statement }}</div>
         </div>
         <p style="margin-top: 24px;">
             <a class="btn" href="/onboarding">New Submission</a>

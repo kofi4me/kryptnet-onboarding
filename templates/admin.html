@@ -35,7 +35,7 @@
                     <td>{{ record.email }}</td>
                     <td>{{ record.selected_services.replace(',', ', ') }}</td>
                     <td>{{ record.risk_controls.replace(',', ', ') if record.risk_controls else 'Not provided' }}</td>
-                    <td><span class="badge">{{ record.risk_score }}/100 - {{ record.risk_level }} risk</span></td>
+                    <td><span class="badge">{{ record.risk_score }}% - {{ record.risk_level }} risk</span></td>
                     <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 </tr>
                 {% else %}

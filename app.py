@@ -5,6 +5,7 @@ import os
 import re
 import secrets
 import smtplib
+import textwrap
 
 from flask import Flask, jsonify, redirect, render_template, request, session, url_for
 from flask_migrate import Migrate
@@ -69,6 +70,56 @@ def split_csv(value):
     return [item.strip() for item in value.split(",") if item.strip()] if value else []
 
 
+def format_score(score):
+    if score is None:
+        score = 0
+    return f"{score}%"
+
+
+def build_control_assessment(record):
+    selected_controls = split_csv(record.risk_controls)
+    missing_controls = [
+        control for control in RISK_CONTROL_OPTIONS if control not in selected_controls
+    ]
+    exposure_lines = [
+        f"{control}: {RISK_CONTROL_EXPOSURES[control]}"
+        for control in missing_controls
+    ]
+    selected_controls_text = (
+        ", ".join(selected_controls) if selected_controls else "No implemented controls selected"
+    )
+    missing_controls_text = (
+        ", ".join(missing_controls) if missing_controls else "No major control gaps selected"
+    )
+
+    return {
+        "selected_controls": selected_controls,
+        "missing_controls": missing_controls,
+        "exposure_lines": exposure_lines,
+        "selected_controls_text": selected_controls_text,
+        "missing_controls_text": missing_controls_text,
+    }
+
+
+def build_service_risk_statement(record):
+    services = split_csv(record.selected_services)
+    services_text = ", ".join(services) if services else "the requested services"
+    assessment = build_control_assessment(record)
+    if not assessment["missing_controls"]:
+        return (
+            f"Based on the services requested ({services_text}), KryptNet should still "
+            "validate the selected controls, confirm they are configured correctly, "
+            "and identify any hidden gaps that may not be visible from the intake form."
+        )
+
+    return (
+        f"Based on the services requested ({services_text}), KryptNet recommends "
+        "addressing the missing security controls before they become business-impacting "
+        "risks. Unresolved gaps can lead to account compromise, ransomware exposure, "
+        "data loss, downtime, compliance concerns, and higher recovery costs."
+    )
+
+
 class ClientOnboarding(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     business_name = db.Column(db.String(200), nullable=False)
@@ -119,6 +170,7 @@ class ClientOnboarding(db.Model):
             "notes": self.notes,
             "authorized": self.authorized,
             "risk_score": self.risk_score,
+            "risk_score_percent": format_score(self.risk_score or 0),
             "risk_level": self.risk_level,
             "security_readiness_score": self.risk_score,
             "readiness_summary": build_readiness_summary(
@@ -167,6 +219,21 @@ RISK_CONTROL_WEIGHTS = {
     "Data Encryption": 7,
 }
 
+RISK_CONTROL_EXPOSURES = {
+    "Multi-Factor Authentication (MFA)": "Without MFA, stolen or guessed passwords can give attackers direct access to email, cloud apps, and business systems.",
+    "Backup & Disaster Recovery": "Without reliable backup and recovery, ransomware, accidental deletion, or hardware failure can cause extended downtime and permanent data loss.",
+    "Endpoint Protection (Antivirus/EDR)": "Without endpoint protection, workstations and servers are more exposed to malware, ransomware, and unauthorized activity.",
+    "Email Security & Phishing Protection": "Without email security, phishing messages, malicious attachments, and credential theft attempts are more likely to reach users.",
+    "Employee Security Awareness Training": "Without user awareness training, employees may be more likely to click phishing links, share credentials, or miss warning signs.",
+    "Patch Management & Updates": "Without timely patching, known software weaknesses can remain open for attackers to exploit.",
+    "Firewall & Network Security": "Without strong network protection, unauthorized traffic and exposed services can increase the chance of intrusion.",
+    "Access Control (Least Privilege)": "Without least-privilege access, one compromised account can create broader damage across files, systems, and applications.",
+    "Vulnerability Scanning": "Without routine vulnerability scanning, weaknesses may remain hidden until they are discovered by attackers.",
+    "Data Encryption": "Without encryption, sensitive business or client data may be exposed if devices, files, or accounts are compromised.",
+    "Incident Response Plan": "Without an incident response plan, security events can take longer to contain, increasing cost, disruption, and reputational impact.",
+    "Logging & Monitoring": "Without monitoring, suspicious activity may go unnoticed until business operations or client data are already affected.",
+}
+
 
 def ensure_database_tables():
     # Keep migrations as the primary schema workflow, but bootstrap the core
@@ -187,9 +254,12 @@ def build_client_confirmation_email(record):
 
     services = split_csv(record.selected_services)
     services_text = ", ".join(services) if services else "Not specified"
-    risk_controls = split_csv(record.risk_controls)
-    risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
+    assessment = build_control_assessment(record)
     readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
+    service_risk_statement = build_service_risk_statement(record)
+    exposure_text = "\n".join(f"- {line}" for line in assessment["exposure_lines"])
+    if not exposure_text:
+        exposure_text = "- No major missing control exposures were identified from the selected answers."
 
     body = f"""Hello {record.contact_name},
 
@@ -200,9 +270,17 @@ We have received your request for:
 - Contact email: {record.email}
 - Phone: {record.phone}
 - Services requested: {services_text}
-- Security readiness score: {record.risk_score}/100
+- Security readiness score: {format_score(record.risk_score)}
 - Risk level: {record.risk_level}
 - Readiness summary: {readiness_summary}
+- Controls selected as currently implemented: {assessment["selected_controls_text"]}
+- Controls not selected and requiring review: {assessment["missing_controls_text"]}
+
+Potential vulnerability areas:
+{exposure_text}
+
+Risk evaluation note:
+{service_risk_statement}
 
 Our team will review your submission and follow up with next steps.
 
@@ -229,9 +307,12 @@ def build_admin_notification_email(record):
 
     services = split_csv(record.selected_services)
     services_text = ", ".join(services) if services else "Not specified"
-    risk_controls = split_csv(record.risk_controls)
-    risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
+    assessment = build_control_assessment(record)
     readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
+    service_risk_statement = build_service_risk_statement(record)
+    exposure_text = "\n".join(f"- {line}" for line in assessment["exposure_lines"])
+    if not exposure_text:
+        exposure_text = "- No major missing control exposures were identified from the selected answers."
 
     body = f"""A new onboarding submission has been received.
 
@@ -247,11 +328,19 @@ Servers: {record.servers if record.servers is not None else 'Not provided'}
 Email platform: {record.email_platform or 'Not provided'}
 Internet provider: {record.internet_provider or 'Not provided'}
 Number of WiFi AP: {record.wifi_aps if record.wifi_aps is not None else 'Not provided'}
-Risk evaluation controls: {risk_controls_text}
+Risk evaluation controls selected: {assessment["selected_controls_text"]}
+Missing controls requiring review: {assessment["missing_controls_text"]}
 Services requested: {services_text}
-Security readiness score: {record.risk_score}/100
+Security readiness score: {format_score(record.risk_score)}
 Risk level: {record.risk_level}
 Readiness summary: {readiness_summary}
+
+Potential vulnerability areas:
+{exposure_text}
+
+Risk evaluation note:
+{service_risk_statement}
+
 Notes: {record.notes or 'None'}
 Submitted at: {record.created_at.isoformat()}
 """
@@ -267,17 +356,22 @@ def generate_onboarding_report_pdf(record):
 
     def write_line(text, gap=18):
         nonlocal y
-        if y < 60:
-            pdf.showPage()
-            y = height - 50
-        pdf.drawString(50, y, str(text))
-        y -= gap
+        text = str(text)
+        if not text:
+            y -= gap
+            return
+        for wrapped_line in textwrap.wrap(text, width=92, subsequent_indent="  "):
+            if y < 60:
+                pdf.showPage()
+                y = height - 50
+            pdf.drawString(50, y, wrapped_line)
+            y -= gap
 
-    services = record.selected_services.split(",") if record.selected_services else []
+    services = split_csv(record.selected_services)
     services_text = ", ".join(services) if services else "Not specified"
-    risk_controls = split_csv(record.risk_controls)
-    risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
+    assessment = build_control_assessment(record)
     readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
+    service_risk_statement = build_service_risk_statement(record)
 
     pdf.setTitle(f"KryptNet Onboarding Report {record.id}")
     pdf.setFont("Helvetica-Bold", 18)
@@ -302,14 +396,33 @@ def generate_onboarding_report_pdf(record):
         f"Email Platform: {record.email_platform or 'Not provided'}",
         f"Internet Provider: {record.internet_provider or 'Not provided'}",
         "",
-        f"Risk Evaluation Controls: {risk_controls_text}",
+        f"Risk Evaluation Controls Selected: {assessment['selected_controls_text']}",
+        f"Controls Not Selected For Review: {assessment['missing_controls_text']}",
         f"Services Requested: {services_text}",
-        f"Security Readiness Score: {record.risk_score}/100",
+        f"Security Readiness Score: {format_score(record.risk_score)}",
         f"Risk Level: {record.risk_level}",
         f"Readiness Summary: {readiness_summary}",
         "",
-        f"Notes: {record.notes or 'None'}",
+        "Potential Vulnerability Areas:",
     ]
+
+    for exposure_line in assessment["exposure_lines"]:
+        report_lines.append(f"- {exposure_line}")
+
+    if not assessment["exposure_lines"]:
+        report_lines.append(
+            "- No major missing control exposures were identified from the selected answers."
+        )
+
+    report_lines.extend(
+        [
+            "",
+            "Risk Evaluation Note:",
+            service_risk_statement,
+            "",
+            f"Notes: {record.notes or 'None'}",
+        ]
+    )
 
     for line in report_lines:
         write_line(line)
@@ -634,6 +747,7 @@ def submission_success(submission_id):
     email_status = request.args.get("email_status", "unknown")
     admin_email_status = request.args.get("admin_email_status", "unknown")
     readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
+    assessment = build_control_assessment(record)
     return render_template(
         "success.html",
         record=record,
@@ -641,6 +755,9 @@ def submission_success(submission_id):
         admin_email_status=admin_email_status,
         admin_notification_email=ADMIN_NOTIFICATION_EMAIL,
         readiness_summary=readiness_summary,
+        assessment=assessment,
+        service_risk_statement=build_service_risk_statement(record),
+        risk_score_percent=format_score(record.risk_score),
     )
 
 
@@ -736,17 +853,6 @@ def healthcheck():
             }
         ),
         status_code,
-    )
-
-
-@app.route("/admin-config-check")
-def admin_config_check():
-    return jsonify(
-        {
-            "admin_password_configured": ADMIN_PASSWORD != "change-me-now",
-            "admin_username_configured": ADMIN_USERNAME != "admin",
-            "admin_username_length": len(ADMIN_USERNAME),
-        }
     )
 
 
