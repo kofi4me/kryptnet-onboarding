@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from io import BytesIO
 import os
@@ -41,6 +41,9 @@ migrate = Migrate(app, db)
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "change-me-now")
 ADMIN_SESSION_KEY = "admin_authenticated"
+ADMIN_LOGIN_ATTEMPTS = {}
+ADMIN_MAX_LOGIN_ATTEMPTS = 5
+ADMIN_LOCKOUT_SECONDS = 15 * 60
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
@@ -411,16 +414,59 @@ def is_admin_authenticated():
     return session.get(ADMIN_SESSION_KEY) is True
 
 
+def get_admin_client_key():
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def get_admin_lockout_seconds(client_key):
+    attempt = ADMIN_LOGIN_ATTEMPTS.get(client_key)
+    if not attempt:
+        return 0
+
+    locked_until = attempt.get("locked_until")
+    if not locked_until:
+        return 0
+
+    now = datetime.utcnow()
+    if locked_until <= now:
+        ADMIN_LOGIN_ATTEMPTS.pop(client_key, None)
+        return 0
+
+    return int((locked_until - now).total_seconds())
+
+
+def record_failed_admin_login(client_key):
+    attempt = ADMIN_LOGIN_ATTEMPTS.setdefault(
+        client_key, {"count": 0, "locked_until": None}
+    )
+    attempt["count"] += 1
+    if attempt["count"] >= ADMIN_MAX_LOGIN_ATTEMPTS:
+        attempt["locked_until"] = datetime.utcnow() + timedelta(
+            seconds=ADMIN_LOCKOUT_SECONDS
+        )
+
+
+def clear_admin_login_attempts(client_key):
+    ADMIN_LOGIN_ATTEMPTS.pop(client_key, None)
+
+
 def require_admin():
     if not is_admin_authenticated():
-        if request.path.startswith("/api/"):
+        if request.path.endswith("/api/submissions"):
             return jsonify({"error": "Authentication required"}), 401
         return redirect(url_for("admin_login", next=request.path))
     return None
 
 
 def sanitize_next_url(next_url):
-    if next_url and next_url.startswith("/") and not next_url.startswith("//"):
+    if (
+        next_url
+        and next_url.startswith("/kryptnet-secure-review")
+        and not next_url.startswith("//")
+    ):
         return next_url
     return url_for("admin_submissions")
 
@@ -460,7 +506,7 @@ def validate_non_negative_integer(errors, field, value, label, required=False):
 def index():
     logo_filename = get_logo_filename()
     logo_src = url_for("static", filename=logo_filename) if logo_filename else None
-    return render_template("home.html", logo_src=logo_src, admin_logged_in=is_admin_authenticated())
+    return render_template("home.html", logo_src=logo_src)
 
 
 @app.route("/onboarding", methods=["GET", "POST"])
@@ -598,7 +644,7 @@ def submission_success(submission_id):
     )
 
 
-@app.route("/admin/submissions")
+@app.route("/kryptnet-secure-review/submissions")
 def admin_submissions():
     auth_redirect = require_admin()
     if auth_redirect:
@@ -608,7 +654,7 @@ def admin_submissions():
     return render_template("admin.html", records=records)
 
 
-@app.route("/admin/login", methods=["GET", "POST"])
+@app.route("/kryptnet-secure-review", methods=["GET", "POST"])
 def admin_login():
     if is_admin_authenticated():
         return redirect(url_for("admin_submissions"))
@@ -619,14 +665,31 @@ def admin_login():
     )
 
     if request.method == "POST":
+        client_key = get_admin_client_key()
+        lockout_seconds = get_admin_lockout_seconds(client_key)
+        if lockout_seconds:
+            minutes = max(1, (lockout_seconds + 59) // 60)
+            error = (
+                "Too many unsuccessful login attempts. "
+                f"Please try again in about {minutes} minute(s)."
+            )
+            return render_template(
+                "admin_login.html",
+                error=error,
+                next_url=next_url,
+                using_default_credentials=False,
+            )
+
         username = request.form.get("username", "").strip()
         password = request.form.get("password", "")
 
         if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+            clear_admin_login_attempts(client_key)
             session.clear()
             session[ADMIN_SESSION_KEY] = True
             return redirect(next_url)
 
+        record_failed_admin_login(client_key)
         error = "Invalid admin username or password."
 
     using_default_credentials = (
@@ -640,13 +703,13 @@ def admin_login():
     )
 
 
-@app.route("/admin/logout", methods=["POST"])
+@app.route("/kryptnet-secure-review/logout", methods=["POST"])
 def admin_logout():
     session.clear()
     return redirect(url_for("admin_login"))
 
 
-@app.route("/api/submissions")
+@app.route("/kryptnet-secure-review/api/submissions")
 def api_submissions():
     auth_redirect = require_admin()
     if auth_redirect:

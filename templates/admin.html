@@ -9,7 +9,7 @@
         <p class="small">This page lists all onboarding records stored in the database.</p>
         <p>
             <a class="btn" href="/onboarding">Create New Submission</a>
-            <form method="POST" action="/admin/logout" style="display: inline-block; margin-left: 10px;">
+            <form method="POST" action="{{ url_for('admin_logout') }}" style="display: inline-block; margin-left: 10px;">
                 <button class="btn" type="submit">Log Out</button>
             </form>
         </p>
