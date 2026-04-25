@@ -48,7 +48,7 @@ ADMIN_LOCKOUT_SECONDS = 15 * 60
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").strip()
 SMTP_USE_TLS = os.getenv("SMTP_USE_TLS", "true").lower() == "true"
 SMTP_USE_SSL = os.getenv("SMTP_USE_SSL", "false").lower() == "true"
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "").strip()
@@ -74,6 +74,10 @@ def format_score(score):
     if score is None:
         score = 0
     return f"{score}%"
+
+
+def safe_pdf_text(text):
+    return str(text).encode("cp1252", "replace").decode("cp1252")
 
 
 def build_control_assessment(record):
@@ -356,7 +360,7 @@ def generate_onboarding_report_pdf(record):
 
     def write_line(text, gap=18):
         nonlocal y
-        text = str(text)
+        text = safe_pdf_text(text)
         if not text:
             y -= gap
             return
@@ -440,9 +444,8 @@ def send_client_confirmation_email(record):
         )
         return "skipped"
 
-    message = build_client_confirmation_email(record)
-
     try:
+        message = build_client_confirmation_email(record)
         smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
         with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
             if not SMTP_USE_SSL:
@@ -468,9 +471,8 @@ def send_admin_notification_email(record):
         )
         return "skipped"
 
-    message = build_admin_notification_email(record)
-
     try:
+        message = build_admin_notification_email(record)
         smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
         with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
             if not SMTP_USE_SSL:
@@ -768,7 +770,12 @@ def admin_submissions():
         return auth_redirect
 
     records = ClientOnboarding.query.order_by(ClientOnboarding.created_at.desc()).all()
-    return render_template("admin.html", records=records)
+    return render_template(
+        "admin.html",
+        records=records,
+        notice=request.args.get("notice", ""),
+        notice_type=request.args.get("notice_type", "hint"),
+    )
 
 
 @app.route("/kryptnet-secure-review/submissions/<int:submission_id>/delete", methods=["POST"])
@@ -781,6 +788,32 @@ def delete_submission(submission_id):
     db.session.delete(record)
     db.session.commit()
     return redirect(url_for("admin_submissions"))
+
+
+@app.route("/kryptnet-secure-review/submissions/<int:submission_id>/resend-client-report", methods=["POST"])
+def resend_client_report(submission_id):
+    auth_redirect = require_admin()
+    if auth_redirect:
+        return auth_redirect
+
+    record = ClientOnboarding.query.get_or_404(submission_id)
+    status = send_client_confirmation_email(record)
+    if status == "sent":
+        notice = f"Client PDF report was resent to {record.email}."
+        notice_type = "hint"
+    elif status == "skipped":
+        notice = "Client PDF report could not be sent because SMTP is not configured."
+        notice_type = "warning"
+    else:
+        notice = (
+            "Client PDF report could not be sent. Check Render logs and SMTP "
+            "credentials, then try again."
+        )
+        notice_type = "warning"
+
+    return redirect(
+        url_for("admin_submissions", notice=notice, notice_type=notice_type)
+    )
 
 
 @app.route("/kryptnet-secure-review", methods=["GET", "POST"])

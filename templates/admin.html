@@ -7,6 +7,9 @@
     <div class="panel">
         <h1>KryptNet Client Onboarding Submissions</h1>
         <p class="small">This page lists all onboarding records stored in the database.</p>
+        {% if notice %}
+        <div class="{{ 'warning' if notice_type == 'warning' else 'hint' }}">{{ notice }}</div>
+        {% endif %}
         <p>
             <form method="POST" action="{{ url_for('admin_logout') }}" style="display: inline-block;">
                 <button class="btn" type="submit">Log Out</button>
@@ -38,8 +41,11 @@
                     <td><span class="badge">{{ record.risk_score }}% - {{ record.risk_level }} risk</span></td>
                     <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>
+                        <form method="POST" action="{{ url_for('resend_client_report', submission_id=record.id) }}" style="margin-bottom: 8px;">
+                            <button class="btn" type="submit">Resend Report</button>
+                        </form>
                         <form method="POST" action="{{ url_for('delete_submission', submission_id=record.id) }}" onsubmit="return confirm('Delete this onboarding submission permanently?');">
-                            <button class="btn" type="submit">Delete</button>
+                            <button class="btn" type="submit" style="background: #991b1b;">Delete</button>
                         </form>
                     </td>
                 </tr>
