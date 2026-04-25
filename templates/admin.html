@@ -21,6 +21,7 @@
                     <th>Contact</th>
                     <th>Email</th>
                     <th>Services</th>
+                    <th>Risk Controls</th>
                     <th>Risk</th>
                     <th>Created</th>
                 </tr>
@@ -32,7 +33,8 @@
                     <td>{{ record.business_name }}</td>
                     <td>{{ record.contact_name }}<br><span class="small">{{ record.phone }}</span></td>
                     <td>{{ record.email }}</td>
-                    <td>{{ record.selected_services }}</td>
+                    <td>{{ record.selected_services.replace(',', ', ') }}</td>
+                    <td>{{ record.risk_controls.replace(',', ', ') if record.risk_controls else 'Not provided' }}</td>
                     <td><span class="badge">{{ record.risk_level }} ({{ record.risk_score }})</span></td>
                     <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                 </tr>

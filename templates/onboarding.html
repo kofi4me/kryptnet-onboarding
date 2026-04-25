@@ -7,7 +7,7 @@
     <div class="panel">
         <h1>KryptNet Client Onboarding Form</h1>
         <p class="muted">Complete this intake form to begin onboarding with KryptNet managed services.</p>
-        <div class="hint">This version stores submissions in a database and calculates a lightweight risk score based on antivirus, backups, and MFA.</div>
+        <div class="hint">This form helps KryptNet understand your technology environment, current security controls, and requested managed service needs.</div>
         <form method="POST">
             <div class="section">
                 <h2>1. Business Profile</h2>
@@ -52,6 +52,7 @@
 
             <div class="section">
                 <h2>2. Technical Environment</h2>
+                <p class="muted">Please provide accurate details about your current technology environment so KryptNet can better understand your infrastructure and support needs.</p>
                 <div class="form-grid">
                     <div>
                         <label>Number of Computers *</label>
@@ -64,6 +65,11 @@
                         {% if errors.get('servers') %}<div class="error">{{ errors.get('servers') }}</div>{% endif %}
                     </div>
                     <div>
+                        <label>Number of WiFi AP *</label>
+                        <input type="number" name="wifi_aps" value="{{ form.get('wifi_aps', '') }}">
+                        {% if errors.get('wifi_aps') %}<div class="error">{{ errors.get('wifi_aps') }}</div>{% endif %}
+                    </div>
+                    <div>
                         <label>Email Platform *</label>
                         <input type="text" name="email_platform" value="{{ form.get('email_platform', '') }}" placeholder="Microsoft 365, Google Workspace">
                         {% if errors.get('email_platform') %}<div class="error">{{ errors.get('email_platform') }}</div>{% endif %}
@@ -74,21 +80,27 @@
                         {% if errors.get('internet_provider') %}<div class="error">{{ errors.get('internet_provider') }}</div>{% endif %}
                     </div>
                 </div>
-                <div class="form-grid" style="margin-top: 16px;">
-                    <div class="security-box">
-                        <label><input type="checkbox" name="antivirus" {% if form.get('antivirus') %}checked{% endif %}> Antivirus / EDR in place</label>
+
+                <div class="section">
+                    <h2>Risk Evaluation *</h2>
+                    <p class="muted">Which security controls or services are currently implemented in your working environment?</p>
+                    <div class="form-grid" style="margin-top: 16px;">
+                        {% for control in risk_control_options %}
+                        <div class="security-box">
+                            <label>
+                                <input type="checkbox" name="risk_controls" value="{{ control }}" {% if control in form.getlist('risk_controls') %}checked{% endif %}>
+                                {{ control }}
+                            </label>
+                        </div>
+                        {% endfor %}
                     </div>
-                    <div class="security-box">
-                        <label><input type="checkbox" name="backups" {% if form.get('backups') %}checked{% endif %}> Backups enabled</label>
-                    </div>
-                    <div class="security-box">
-                        <label><input type="checkbox" name="mfa" {% if form.get('mfa') %}checked{% endif %}> MFA enabled</label>
-                    </div>
+                    {% if errors.get('risk_controls') %}<div class="error">{{ errors.get('risk_controls') }}</div>{% endif %}
                 </div>
             </div>
 
             <div class="section">
                 <h2>3. Requested Services *</h2>
+                <p class="muted">Select the cybersecurity and managed IT services you would like KryptNet to provide for your business.</p>
                 <div class="checkbox-group">
                     {% for service in service_options %}
                     <div class="service-box">

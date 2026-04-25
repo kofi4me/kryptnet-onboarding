@@ -62,6 +62,10 @@ LOGO_CANDIDATES = (
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 
+def split_csv(value):
+    return [item.strip() for item in value.split(",") if item.strip()] if value else []
+
+
 class ClientOnboarding(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     business_name = db.Column(db.String(200), nullable=False)
@@ -73,11 +77,13 @@ class ClientOnboarding(db.Model):
     employees = db.Column(db.Integer, nullable=True)
     computers = db.Column(db.Integer, nullable=True)
     servers = db.Column(db.Integer, nullable=True)
+    wifi_aps = db.Column(db.Integer, nullable=True)
     email_platform = db.Column(db.String(120), nullable=True)
     internet_provider = db.Column(db.String(120), nullable=True)
     antivirus = db.Column(db.Boolean, default=False)
     backups = db.Column(db.Boolean, default=False)
     mfa = db.Column(db.Boolean, default=False)
+    risk_controls = db.Column(db.Text, nullable=True)
     selected_services = db.Column(db.Text, nullable=True)
     notes = db.Column(db.Text, nullable=True)
     authorized = db.Column(db.Boolean, default=False)
@@ -97,11 +103,13 @@ class ClientOnboarding(db.Model):
             "employees": self.employees,
             "computers": self.computers,
             "servers": self.servers,
+            "wifi_aps": self.wifi_aps,
             "email_platform": self.email_platform,
             "internet_provider": self.internet_provider,
             "antivirus": self.antivirus,
             "backups": self.backups,
             "mfa": self.mfa,
+            "risk_controls": split_csv(self.risk_controls),
             "selected_services": (
                 self.selected_services.split(",") if self.selected_services else []
             ),
@@ -122,6 +130,21 @@ SERVICE_OPTIONS = [
     "Vulnerability Assessment",
 ]
 
+RISK_CONTROL_OPTIONS = [
+    "Multi-Factor Authentication (MFA)",
+    "Backup & Disaster Recovery",
+    "Endpoint Protection (Antivirus/EDR)",
+    "Email Security & Phishing Protection",
+    "Employee Security Awareness Training",
+    "Patch Management & Updates",
+    "Firewall & Network Security",
+    "Access Control (Least Privilege)",
+    "Vulnerability Scanning",
+    "Data Encryption",
+    "Incident Response Plan",
+    "Logging & Monitoring",
+]
+
 
 def ensure_database_tables():
     # Keep migrations as the primary schema workflow, but bootstrap the core
@@ -140,8 +163,10 @@ def build_client_confirmation_email(record):
     message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
     message["To"] = record.email
 
-    services = record.selected_services.split(",") if record.selected_services else []
+    services = split_csv(record.selected_services)
     services_text = ", ".join(services) if services else "Not specified"
+    risk_controls = split_csv(record.risk_controls)
+    risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
 
     body = f"""Hello {record.contact_name},
 
@@ -177,7 +202,7 @@ def build_admin_notification_email(record):
     message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
     message["To"] = ADMIN_NOTIFICATION_EMAIL
 
-    services = record.selected_services.split(",") if record.selected_services else []
+    services = split_csv(record.selected_services)
     services_text = ", ".join(services) if services else "Not specified"
 
     body = f"""A new onboarding submission has been received.
@@ -193,9 +218,8 @@ Computers: {record.computers if record.computers is not None else 'Not provided'
 Servers: {record.servers if record.servers is not None else 'Not provided'}
 Email platform: {record.email_platform or 'Not provided'}
 Internet provider: {record.internet_provider or 'Not provided'}
-Antivirus: {"Yes" if record.antivirus else "No"}
-Backups: {"Yes" if record.backups else "No"}
-MFA: {"Yes" if record.mfa else "No"}
+Number of WiFi AP: {record.wifi_aps if record.wifi_aps is not None else 'Not provided'}
+Risk evaluation controls: {risk_controls_text}
 Services requested: {services_text}
 Risk score: {record.risk_score}
 Risk level: {record.risk_level}
@@ -222,6 +246,8 @@ def generate_onboarding_report_pdf(record):
 
     services = record.selected_services.split(",") if record.selected_services else []
     services_text = ", ".join(services) if services else "Not specified"
+    risk_controls = split_csv(record.risk_controls)
+    risk_controls_text = ", ".join(risk_controls) if risk_controls else "Not specified"
 
     pdf.setTitle(f"KryptNet Onboarding Report {record.id}")
     pdf.setFont("Helvetica-Bold", 18)
@@ -242,12 +268,11 @@ def generate_onboarding_report_pdf(record):
         f"Employees: {record.employees if record.employees is not None else 'Not provided'}",
         f"Computers: {record.computers if record.computers is not None else 'Not provided'}",
         f"Servers: {record.servers if record.servers is not None else 'Not provided'}",
+        f"Number of WiFi AP: {record.wifi_aps if record.wifi_aps is not None else 'Not provided'}",
         f"Email Platform: {record.email_platform or 'Not provided'}",
         f"Internet Provider: {record.internet_provider or 'Not provided'}",
         "",
-        f"Antivirus: {'Yes' if record.antivirus else 'No'}",
-        f"Backups: {'Yes' if record.backups else 'No'}",
-        f"MFA: {'Yes' if record.mfa else 'No'}",
+        f"Risk Evaluation Controls: {risk_controls_text}",
         f"Services Requested: {services_text}",
         f"Risk Score: {record.risk_score}/100",
         f"Risk Level: {record.risk_level}",
@@ -319,14 +344,9 @@ def send_admin_notification_email(record):
         return "failed"
 
 
-def calculate_risk_score(antivirus, backups, mfa):
-    score = 0
-    if not antivirus:
-        score += 30
-    if not backups:
-        score += 35
-    if not mfa:
-        score += 35
+def calculate_risk_score(selected_controls):
+    missing_count = len(RISK_CONTROL_OPTIONS) - len(selected_controls)
+    score = round((missing_count / len(RISK_CONTROL_OPTIONS)) * 100)
 
     if score <= 20:
         level = "Low"
@@ -419,11 +439,10 @@ def onboarding():
         employees = request.form.get("employees", "").strip()
         computers = request.form.get("computers", "").strip()
         servers = request.form.get("servers", "").strip()
+        wifi_aps = request.form.get("wifi_aps", "").strip()
         email_platform = request.form.get("email_platform", "").strip()
         internet_provider = request.form.get("internet_provider", "").strip()
-        antivirus = request.form.get("antivirus") == "on"
-        backups = request.form.get("backups") == "on"
-        mfa = request.form.get("mfa") == "on"
+        selected_risk_controls = request.form.getlist("risk_controls")
         selected_services = request.form.getlist("selected_services")
         notes = request.form.get("notes", "").strip()
         authorized = request.form.get("authorized") == "on"
@@ -454,7 +473,12 @@ def onboarding():
         servers_val = validate_non_negative_integer(
             errors, "servers", servers, "Number of servers", required=True
         )
+        wifi_aps_val = validate_non_negative_integer(
+            errors, "wifi_aps", wifi_aps, "Number of WiFi AP", required=True
+        )
 
+        if not selected_risk_controls:
+            errors["risk_controls"] = "Select at least one implemented security control."
         if not selected_services:
             errors["selected_services"] = "Select at least one service."
         if not authorized:
@@ -468,9 +492,10 @@ def onboarding():
                 errors=errors,
                 form=form_data,
                 service_options=SERVICE_OPTIONS,
+                risk_control_options=RISK_CONTROL_OPTIONS,
             )
 
-        risk_score, risk_level = calculate_risk_score(antivirus, backups, mfa)
+        risk_score, risk_level = calculate_risk_score(selected_risk_controls)
 
         record = ClientOnboarding(
             business_name=business_name,
@@ -482,11 +507,13 @@ def onboarding():
             employees=employees_val,
             computers=computers_val,
             servers=servers_val,
+            wifi_aps=wifi_aps_val,
             email_platform=email_platform,
             internet_provider=internet_provider,
-            antivirus=antivirus,
-            backups=backups,
-            mfa=mfa,
+            antivirus="Endpoint Protection (Antivirus/EDR)" in selected_risk_controls,
+            backups="Backup & Disaster Recovery" in selected_risk_controls,
+            mfa="Multi-Factor Authentication (MFA)" in selected_risk_controls,
+            risk_controls=",".join(selected_risk_controls),
             selected_services=",".join(selected_services),
             notes=notes,
             authorized=authorized,
@@ -512,6 +539,7 @@ def onboarding():
         errors=errors,
         form=form_data,
         service_options=SERVICE_OPTIONS,
+        risk_control_options=RISK_CONTROL_OPTIONS,
     )
 
 

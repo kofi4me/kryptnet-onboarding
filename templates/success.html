@@ -28,15 +28,13 @@
                 <p><strong>Contact:</strong> {{ record.contact_name }}</p>
                 <p><strong>Email:</strong> {{ record.email }}</p>
                 <p><strong>Phone:</strong> {{ record.phone }}</p>
-                <p><strong>Services:</strong> {{ record.selected_services }}</p>
+                <p><strong>Services:</strong> {{ record.selected_services.replace(',', ', ') }}</p>
             </div>
             <div class="card">
                 <h3>Risk Snapshot</h3>
                 <p><strong>Score:</strong> {{ record.risk_score }}/100</p>
                 <p><strong>Level:</strong> <span class="badge">{{ record.risk_level }}</span></p>
-                <p><strong>Antivirus:</strong> {{ 'Yes' if record.antivirus else 'No' }}</p>
-                <p><strong>Backups:</strong> {{ 'Yes' if record.backups else 'No' }}</p>
-                <p><strong>MFA:</strong> {{ 'Yes' if record.mfa else 'No' }}</p>
+                <p><strong>Controls:</strong> {{ record.risk_controls.replace(',', ', ') if record.risk_controls else 'Not provided' }}</p>
             </div>
         </div>
         <p style="margin-top: 24px;">
