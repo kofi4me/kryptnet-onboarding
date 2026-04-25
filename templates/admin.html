@@ -10,6 +10,25 @@
         {% if notice %}
         <div class="{{ 'warning' if notice_type == 'warning' else 'hint' }}">{{ notice }}</div>
         {% endif %}
+        <div class="{{ 'hint' if smtp_status.configured else 'warning' }}">
+            <strong>Email delivery status:</strong>
+            {% if smtp_status.configured %}
+            SMTP is configured. Reports should send from {{ smtp_status.from_email }} using {{ smtp_status.host }}:{{ smtp_status.port }}.
+            {% else %}
+            SMTP is not fully configured. Missing:
+            {% for key, configured in smtp_status.checks.items() %}
+                {% if not configured %}<strong>{{ key }}</strong>{% endif %}
+            {% endfor %}
+            {% endif %}
+            <div class="small" style="margin-top: 8px;">
+                Host: {{ smtp_status.host }} |
+                Port: {{ smtp_status.port }} |
+                Username: {{ smtp_status.username }} |
+                From: {{ smtp_status.from_email }} |
+                SSL: {{ smtp_status.use_ssl }} |
+                TLS: {{ smtp_status.use_tls }}
+            </div>
+        </div>
         <p>
             <form method="POST" action="{{ url_for('admin_logout') }}" style="display: inline-block;">
                 <button class="btn" type="submit">Log Out</button>

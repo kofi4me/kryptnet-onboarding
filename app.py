@@ -250,6 +250,26 @@ def smtp_is_configured():
     return all([SMTP_HOST, SMTP_PORT, SMTP_USERNAME, SMTP_PASSWORD, SMTP_FROM_EMAIL])
 
 
+def smtp_config_status():
+    checks = {
+        "SMTP_HOST": bool(SMTP_HOST),
+        "SMTP_PORT": bool(SMTP_PORT),
+        "SMTP_USERNAME": bool(SMTP_USERNAME),
+        "SMTP_PASSWORD": bool(SMTP_PASSWORD),
+        "SMTP_FROM_EMAIL": bool(SMTP_FROM_EMAIL),
+    }
+    return {
+        "configured": all(checks.values()),
+        "checks": checks,
+        "host": SMTP_HOST or "Not set",
+        "port": SMTP_PORT,
+        "username": SMTP_USERNAME or "Not set",
+        "from_email": SMTP_FROM_EMAIL or "Not set",
+        "use_ssl": SMTP_USE_SSL,
+        "use_tls": SMTP_USE_TLS,
+    }
+
+
 def build_client_confirmation_email(record):
     message = EmailMessage()
     message["Subject"] = "KryptNet onboarding submission received"
@@ -773,6 +793,7 @@ def admin_submissions():
     return render_template(
         "admin.html",
         records=records,
+        smtp_status=smtp_config_status(),
         notice=request.args.get("notice", ""),
         notice_type=request.args.get("notice_type", "hint"),
     )
