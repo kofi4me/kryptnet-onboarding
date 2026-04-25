@@ -29,6 +29,13 @@
                 TLS: {{ smtp_status.use_tls }}
             </div>
         </div>
+        <div class="{{ 'hint' if database_status.persistent else 'warning' }}">
+            <strong>Database storage status:</strong> {{ database_status.message }}
+            <div class="small" style="margin-top: 8px;">
+                Backend: {{ database_status.backend }} |
+                DATABASE_URL configured: {{ database_status.database_url_configured }}
+            </div>
+        </div>
         <p>
             <form method="POST" action="{{ url_for('admin_logout') }}" style="display: inline-block;">
                 <button class="btn" type="submit">Log Out</button>
@@ -49,7 +56,8 @@
                 </tr>
             </thead>
             <tbody>
-                {% for record in records %}
+                {% for row in report_rows %}
+                {% set record = row.record %}
                 <tr>
                     <td>{{ record.id }}</td>
                     <td>{{ record.business_name }}</td>
@@ -66,6 +74,52 @@
                         <form method="POST" action="{{ url_for('delete_submission', submission_id=record.id) }}" onsubmit="return confirm('Delete this onboarding submission permanently?');">
                             <button class="btn" type="submit" style="background: #991b1b;">Delete</button>
                         </form>
+                    </td>
+                </tr>
+                <tr>
+                    <td colspan="9">
+                        <details>
+                            <summary><strong>View full client report details</strong></summary>
+                            <div class="grid">
+                                <div class="card">
+                                    <h3>Client Summary</h3>
+                                    <p><strong>Business:</strong> {{ record.business_name }}</p>
+                                    <p><strong>Industry:</strong> {{ record.industry or 'Not provided' }}</p>
+                                    <p><strong>Contact:</strong> {{ record.contact_name }}</p>
+                                    <p><strong>Email:</strong> {{ record.email }}</p>
+                                    <p><strong>Phone:</strong> {{ record.phone }}</p>
+                                    <p><strong>Services:</strong> {{ record.selected_services.replace(',', ', ') }}</p>
+                                </div>
+                                <div class="card">
+                                    <h3>Technical Environment</h3>
+                                    <p><strong>Employees:</strong> {{ record.employees }}</p>
+                                    <p><strong>Computers:</strong> {{ record.computers }}</p>
+                                    <p><strong>Servers:</strong> {{ record.servers }}</p>
+                                    <p><strong>WiFi AP:</strong> {{ record.wifi_aps }}</p>
+                                    <p><strong>Email Platform:</strong> {{ record.email_platform }}</p>
+                                    <p><strong>Internet Provider:</strong> {{ record.internet_provider }}</p>
+                                </div>
+                                <div class="card">
+                                    <h3>Security Readiness Snapshot</h3>
+                                    <p><strong>Readiness Score:</strong> {{ row.risk_score_percent }}</p>
+                                    <p><strong>Risk Level:</strong> <span class="badge">{{ record.risk_level }}</span></p>
+                                    <p><strong>Summary:</strong> {{ row.readiness_summary }}</p>
+                                    <p><strong>Controls selected:</strong> {{ row.assessment.selected_controls_text }}</p>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-top: 18px;">
+                                <h3>Potential Vulnerability Areas</h3>
+                                <p class="muted">These are the security controls not selected in the risk evaluation. They may represent business risks that should be reviewed during onboarding.</p>
+                                {% if row.assessment.exposure_lines %}
+                                    {% for exposure in row.assessment.exposure_lines %}
+                                    <p><strong>{{ exposure.split(':', 1)[0] }}:</strong>{{ exposure.split(':', 1)[1] }}</p>
+                                    {% endfor %}
+                                {% else %}
+                                    <p>No major missing control exposures were identified from the selected answers.</p>
+                                {% endif %}
+                                <div class="hint"><strong>Recommended next step:</strong> {{ row.service_risk_statement }}</div>
+                            </div>
+                        </details>
                     </td>
                 </tr>
                 {% else %}

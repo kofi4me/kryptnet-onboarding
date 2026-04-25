@@ -24,11 +24,11 @@ def normalize_database_url(database_url):
     return database_url
 
 
+DATABASE_URL_RAW = os.getenv("DATABASE_URL", "").strip()
+
 app = Flask(__name__, static_folder="static")
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
-app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(
-    os.getenv("DATABASE_URL")
-)
+app.config["SQLALCHEMY_DATABASE_URI"] = normalize_database_url(DATABASE_URL_RAW)
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
 app.config["SECRET_KEY"] = os.getenv("SECRET_KEY") or secrets.token_hex(32)
@@ -270,6 +270,36 @@ def smtp_config_status():
     }
 
 
+def database_config_status():
+    database_uri = app.config["SQLALCHEMY_DATABASE_URI"]
+    is_sqlite = database_uri.startswith("sqlite:")
+    return {
+        "backend": "SQLite" if is_sqlite else "External database",
+        "persistent": not is_sqlite,
+        "database_url_configured": bool(DATABASE_URL_RAW),
+        "message": (
+            "Persistent database configured."
+            if not is_sqlite
+            else (
+                "Using fallback SQLite. On Render this can reset or appear to replace "
+                "entries after deploys/restarts. Add DATABASE_URL for persistent storage."
+            )
+        ),
+    }
+
+
+def build_report_context(record):
+    return {
+        "record": record,
+        "assessment": build_control_assessment(record),
+        "readiness_summary": build_readiness_summary(
+            record.risk_score, record.risk_level
+        ),
+        "risk_score_percent": format_score(record.risk_score),
+        "service_risk_statement": build_service_risk_statement(record),
+    }
+
+
 def build_client_confirmation_email(record):
     message = EmailMessage()
     message["Subject"] = "KryptNet onboarding submission received"
@@ -397,59 +427,67 @@ def generate_onboarding_report_pdf(record):
     readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
     service_risk_statement = build_service_risk_statement(record)
 
-    pdf.setTitle(f"KryptNet Onboarding Report {record.id}")
+    pdf.setTitle(f"KryptNet Client Onboarding Report {record.id}")
     pdf.setFont("Helvetica-Bold", 18)
-    write_line("KryptNet Onboarding Report", gap=28)
+    write_line("Onboarding Submitted Successfully", gap=28)
 
     pdf.setFont("Helvetica", 11)
-    report_lines = [
-        f"Submission ID: {record.id}",
-        f"Submitted At: {record.created_at.isoformat()}",
-        "",
+    write_line("KryptNet has captured the client onboarding record.", gap=24)
+    write_line(
+        "Risk Evaluation: KryptNet reviewed the security controls selected, "
+        "measured the environment against essential cybersecurity readiness "
+        "areas, and generated the readiness score below to help identify the "
+        "current risk status and next protection priorities.",
+        gap=18,
+    )
+    write_line("", gap=12)
+
+    pdf.setFont("Helvetica-Bold", 13)
+    write_line("Client Summary", gap=22)
+    pdf.setFont("Helvetica", 11)
+    for line in [
         f"Business: {record.business_name}",
-        f"Industry: {record.industry or 'Not provided'}",
-        f"Contact Name: {record.contact_name}",
+        f"Contact: {record.contact_name}",
         f"Email: {record.email}",
         f"Phone: {record.phone}",
-        f"Address: {record.address or 'Not provided'}",
-        "",
-        f"Employees: {record.employees if record.employees is not None else 'Not provided'}",
-        f"Computers: {record.computers if record.computers is not None else 'Not provided'}",
-        f"Servers: {record.servers if record.servers is not None else 'Not provided'}",
-        f"Number of WiFi AP: {record.wifi_aps if record.wifi_aps is not None else 'Not provided'}",
-        f"Email Platform: {record.email_platform or 'Not provided'}",
-        f"Internet Provider: {record.internet_provider or 'Not provided'}",
-        "",
-        f"Risk Evaluation Controls Selected: {assessment['selected_controls_text']}",
-        f"Controls Not Selected For Review: {assessment['missing_controls_text']}",
-        f"Services Requested: {services_text}",
-        f"Security Readiness Score: {format_score(record.risk_score)}",
+        f"Services: {services_text}",
+    ]:
+        write_line(line)
+
+    write_line("", gap=12)
+    pdf.setFont("Helvetica-Bold", 13)
+    write_line("Security Readiness Snapshot", gap=22)
+    pdf.setFont("Helvetica", 11)
+    for line in [
+        f"Readiness Score: {format_score(record.risk_score)}",
         f"Risk Level: {record.risk_level}",
-        f"Readiness Summary: {readiness_summary}",
-        "",
-        "Potential Vulnerability Areas:",
-    ]
+        f"Summary: {readiness_summary}",
+        f"Controls selected: {assessment['selected_controls_text']}",
+    ]:
+        write_line(line)
 
-    for exposure_line in assessment["exposure_lines"]:
-        report_lines.append(f"- {exposure_line}")
-
-    if not assessment["exposure_lines"]:
-        report_lines.append(
-            "- No major missing control exposures were identified from the selected answers."
-        )
-
-    report_lines.extend(
-        [
-            "",
-            "Risk Evaluation Note:",
-            service_risk_statement,
-            "",
-            f"Notes: {record.notes or 'None'}",
-        ]
+    write_line("", gap=12)
+    pdf.setFont("Helvetica-Bold", 13)
+    write_line("Potential Vulnerability Areas", gap=22)
+    pdf.setFont("Helvetica", 11)
+    write_line(
+        "These are the security controls not selected in the risk evaluation. "
+        "They may represent business risks that should be reviewed during onboarding."
     )
 
-    for line in report_lines:
-        write_line(line)
+    if assessment["exposure_lines"]:
+        for exposure_line in assessment["exposure_lines"]:
+            write_line(exposure_line)
+    else:
+        write_line(
+            "No major missing control exposures were identified from the selected answers."
+        )
+
+    write_line("", gap=12)
+    pdf.setFont("Helvetica-Bold", 13)
+    write_line("Recommended Next Step", gap=22)
+    pdf.setFont("Helvetica", 11)
+    write_line(service_risk_statement)
 
     pdf.save()
     buffer.seek(0)
@@ -768,18 +806,17 @@ def submission_success(submission_id):
     record = ClientOnboarding.query.get_or_404(submission_id)
     email_status = request.args.get("email_status", "unknown")
     admin_email_status = request.args.get("admin_email_status", "unknown")
-    readiness_summary = build_readiness_summary(record.risk_score, record.risk_level)
-    assessment = build_control_assessment(record)
+    report_context = build_report_context(record)
     return render_template(
         "success.html",
-        record=record,
+        record=report_context["record"],
         email_status=email_status,
         admin_email_status=admin_email_status,
         admin_notification_email=ADMIN_NOTIFICATION_EMAIL,
-        readiness_summary=readiness_summary,
-        assessment=assessment,
-        service_risk_statement=build_service_risk_statement(record),
-        risk_score_percent=format_score(record.risk_score),
+        readiness_summary=report_context["readiness_summary"],
+        assessment=report_context["assessment"],
+        service_risk_statement=report_context["service_risk_statement"],
+        risk_score_percent=report_context["risk_score_percent"],
     )
 
 
@@ -790,10 +827,12 @@ def admin_submissions():
         return auth_redirect
 
     records = ClientOnboarding.query.order_by(ClientOnboarding.created_at.desc()).all()
+    report_rows = [build_report_context(record) for record in records]
     return render_template(
         "admin.html",
-        records=records,
+        report_rows=report_rows,
         smtp_status=smtp_config_status(),
+        database_status=database_config_status(),
         notice=request.args.get("notice", ""),
         notice_type=request.args.get("notice_type", "hint"),
     )
