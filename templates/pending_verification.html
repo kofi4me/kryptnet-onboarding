@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Your Email{% endblock %}
+
+{% block body %}
+<div class="container narrow">
+    <div class="panel">
+        <h1>Verify Your Email to Continue</h1>
+        <p>KryptNet received your onboarding request, but it must be verified before the report is finalized.</p>
+        {% if verification_email_status == "sent" %}
+        <div class="hint">
+            A verification link has been sent to the email address provided. Please open that email and click the verification link to receive your onboarding report.
+        </div>
+        {% elif verification_email_status == "failed" %}
+        <div class="warning">
+            We received your request, but the verification email could not be sent. Please contact KryptNet support for assistance.
+        </div>
+        {% elif verification_email_status == "skipped" %}
+        <div class="warning">
+            We received your request, but email verification is not configured yet. Please contact KryptNet support for assistance.
+        </div>
+        {% else %}
+        <div class="hint">
+            If the email address is valid, a verification message will arrive shortly. Please check your inbox and spam folder.
+        </div>
+        {% endif %}
+        <p class="muted">This step helps KryptNet reduce fake onboarding requests and protect client communication.</p>
+    </div>
+</div>
+{% endblock %}

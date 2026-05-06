@@ -51,6 +51,7 @@
                     <th>Services</th>
                     <th>Risk Controls</th>
                     <th>Readiness</th>
+                    <th>Status</th>
                     <th>Created</th>
                     <th>Action</th>
                 </tr>
@@ -66,18 +67,28 @@
                     <td>{{ record.selected_services.replace(',', ', ') }}</td>
                     <td>{{ record.risk_controls.replace(',', ', ') if record.risk_controls else 'Not provided' }}</td>
                     <td><span class="badge">{{ record.risk_score }}% - {{ record.risk_level }} risk</span></td>
+                    <td>
+                        <span class="badge">{{ record.verification_status }}</span>
+                        {% if record.suspicious_reason %}<br><span class="small">{{ record.suspicious_reason }}</span>{% endif %}
+                    </td>
                     <td>{{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
                     <td>
+                        {% if record.verification_status == 'Verified' %}
                         <form method="POST" action="{{ url_for('resend_client_report', submission_id=record.id) }}" style="margin-bottom: 8px;">
                             <button class="btn" type="submit">Resend Report</button>
                         </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('resend_verification_email', submission_id=record.id) }}" style="margin-bottom: 8px;">
+                            <button class="btn" type="submit">Resend Verification</button>
+                        </form>
+                        {% endif %}
                         <form method="POST" action="{{ url_for('delete_submission', submission_id=record.id) }}" onsubmit="return confirm('Delete this onboarding submission permanently?');">
                             <button class="btn" type="submit" style="background: #991b1b;">Delete</button>
                         </form>
                     </td>
                 </tr>
                 <tr>
-                    <td colspan="9">
+                    <td colspan="10">
                         <details>
                             <summary><strong>View full client report details</strong></summary>
                             <div class="grid">
@@ -124,7 +135,7 @@
                 </tr>
                 {% else %}
                 <tr>
-                    <td colspan="9">No submissions yet.</td>
+                    <td colspan="10">No submissions yet.</td>
                 </tr>
                 {% endfor %}
             </tbody>

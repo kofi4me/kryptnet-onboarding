@@ -10,6 +10,11 @@
         <div class="trust-copy">Your responses help KryptNet prepare a focused onboarding review, identify risk gaps, and recommend the right protection plan for your business.</div>
         <div class="hint">This form helps KryptNet understand your technology environment, current security controls, and requested managed service needs.</div>
         <form method="POST">
+            <div style="position:absolute; left:-10000px; top:auto; width:1px; height:1px; overflow:hidden;" aria-hidden="true">
+                <label>Company Website Confirmation</label>
+                <input type="text" name="company_website_confirm" value="" tabindex="-1" autocomplete="off">
+            </div>
+            {% if errors.get('rate_limit') %}<div class="warning">{{ errors.get('rate_limit') }}</div>{% endif %}
             <div class="section">
                 <h2>1. Business Profile</h2>
                 <div class="form-grid">

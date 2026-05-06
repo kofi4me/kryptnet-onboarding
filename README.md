@@ -72,14 +72,17 @@ Notes:
 - Admin submissions view: `/kryptnet-secure-review/submissions`
 - Protected API: `/kryptnet-secure-review/api/submissions`
 
-## Client email confirmations
+## Client email verification and confirmations
 
 When SMTP settings are configured, the app sends:
 
-- a confirmation email to the client email address submitted in the onboarding form
-- an admin copy of the onboarding report to `support@kryptnet.org` by default
+- a verification email to the client email address submitted in the onboarding form
+- the client PDF report only after the verification link is clicked
+- an admin copy of the onboarding report to `support@kryptnet.org` after verification
 
-If SMTP is not configured, the submission still succeeds and the success page will indicate that email sending was skipped.
+The form also includes a hidden honeypot field and basic IP-based submission rate limiting to reduce fake or automated requests.
+
+If SMTP is not configured, the submission is saved as pending and admin can resend verification after SMTP is fixed.
 
 ## Health checks
 

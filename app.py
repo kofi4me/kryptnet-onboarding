@@ -45,6 +45,9 @@ ADMIN_SESSION_KEY = "admin_authenticated"
 ADMIN_LOGIN_ATTEMPTS = {}
 ADMIN_MAX_LOGIN_ATTEMPTS = 5
 ADMIN_LOCKOUT_SECONDS = 15 * 60
+SUBMISSION_ATTEMPTS = {}
+SUBMISSION_RATE_LIMIT = 5
+SUBMISSION_RATE_WINDOW_SECONDS = 60 * 60
 SMTP_HOST = os.getenv("SMTP_HOST", "").strip()
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USERNAME = os.getenv("SMTP_USERNAME", "").strip()
@@ -64,6 +67,9 @@ LOGO_CANDIDATES = (
 )
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+VERIFICATION_STATUS_PENDING = "Pending Verification"
+VERIFICATION_STATUS_VERIFIED = "Verified"
+VERIFICATION_STATUS_SUSPICIOUS = "Suspicious"
 
 
 def split_csv(value):
@@ -147,6 +153,14 @@ class ClientOnboarding(db.Model):
     authorized = db.Column(db.Boolean, default=False)
     risk_score = db.Column(db.Integer, default=0)
     risk_level = db.Column(db.String(50), default="Unknown")
+    verification_status = db.Column(
+        db.String(50), default=VERIFICATION_STATUS_PENDING, nullable=False
+    )
+    verification_token = db.Column(db.String(128), nullable=True, unique=True)
+    verification_sent_at = db.Column(db.DateTime, nullable=True)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    suspicious_reason = db.Column(db.String(250), nullable=True)
+    submitter_ip = db.Column(db.String(100), nullable=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def to_dict(self):
@@ -176,6 +190,10 @@ class ClientOnboarding(db.Model):
             "risk_score": self.risk_score,
             "risk_score_percent": format_score(self.risk_score or 0),
             "risk_level": self.risk_level,
+            "verification_status": self.verification_status,
+            "verified_at": self.verified_at.isoformat() if self.verified_at else None,
+            "suspicious_reason": self.suspicious_reason,
+            "submitter_ip": self.submitter_ip,
             "security_readiness_score": self.risk_score,
             "readiness_summary": build_readiness_summary(
                 self.risk_score or 0, self.risk_level
@@ -353,6 +371,34 @@ KryptNet
     return message
 
 
+def build_email_verification_message(record):
+    message = EmailMessage()
+    message["Subject"] = "Verify your KryptNet onboarding request"
+    message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+    message["To"] = record.email
+
+    verification_url = url_for(
+        "verify_submission",
+        token=record.verification_token,
+        _external=True,
+        _scheme="https" if request.is_secure else request.scheme,
+    )
+    body = f"""Hello {record.contact_name},
+
+KryptNet received an onboarding request for {record.business_name}.
+
+Please verify this email address before KryptNet finalizes the onboarding report:
+{verification_url}
+
+If you did not submit this request, you can ignore this email.
+
+Thank you,
+KryptNet
+"""
+    message.set_content(body)
+    return message
+
+
 def build_admin_notification_email(record):
     message = EmailMessage()
     message["Subject"] = f"New KryptNet onboarding submission: {record.business_name}"
@@ -521,6 +567,33 @@ def send_client_confirmation_email(record):
         return "failed"
 
 
+def send_verification_email(record):
+    if not smtp_is_configured():
+        app.logger.warning(
+            "SMTP is not configured; skipping verification email for submission %s",
+            record.id,
+        )
+        return "skipped"
+
+    try:
+        message = build_email_verification_message(record)
+        smtp_client = smtplib.SMTP_SSL if SMTP_USE_SSL else smtplib.SMTP
+        with smtp_client(SMTP_HOST, SMTP_PORT, timeout=20) as smtp:
+            if not SMTP_USE_SSL:
+                smtp.ehlo()
+                if SMTP_USE_TLS:
+                    smtp.starttls()
+                    smtp.ehlo()
+            smtp.login(SMTP_USERNAME, SMTP_PASSWORD)
+            smtp.send_message(message)
+        return "sent"
+    except Exception:
+        app.logger.exception(
+            "Failed to send verification email for submission %s", record.id
+        )
+        return "failed"
+
+
 def send_admin_notification_email(record):
     if not smtp_is_configured():
         app.logger.warning(
@@ -592,6 +665,30 @@ def get_admin_client_key():
     if forwarded_for:
         return forwarded_for.split(",", 1)[0].strip()
     return request.remote_addr or "unknown"
+
+
+def get_client_ip():
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    return request.remote_addr or "unknown"
+
+
+def submission_rate_limited(client_ip):
+    now = datetime.utcnow()
+    window_start = now - timedelta(seconds=SUBMISSION_RATE_WINDOW_SECONDS)
+    attempts = [
+        attempt
+        for attempt in SUBMISSION_ATTEMPTS.get(client_ip, [])
+        if attempt >= window_start
+    ]
+    if len(attempts) >= SUBMISSION_RATE_LIMIT:
+        SUBMISSION_ATTEMPTS[client_ip] = attempts
+        return True
+
+    attempts.append(now)
+    SUBMISSION_ATTEMPTS[client_ip] = attempts
+    return False
 
 
 def get_admin_lockout_seconds(client_key):
@@ -688,6 +785,28 @@ def onboarding():
     form_data = request.form if request.method == "POST" else MultiDict()
 
     if request.method == "POST":
+        client_ip = get_client_ip()
+        honeypot = request.form.get("company_website_confirm", "").strip()
+        if honeypot:
+            app.logger.warning(
+                "Honeypot trapped suspicious onboarding submission from %s",
+                client_ip,
+            )
+            return redirect(url_for("submission_pending"))
+
+        if submission_rate_limited(client_ip):
+            errors["rate_limit"] = (
+                "Too many onboarding attempts were submitted from this connection. "
+                "Please wait and try again later."
+            )
+            return render_template(
+                "onboarding.html",
+                errors=errors,
+                form=form_data,
+                service_options=SERVICE_OPTIONS,
+                risk_control_options=RISK_CONTROL_OPTIONS,
+            )
+
         business_name = request.form.get("business_name", "").strip()
         industry = request.form.get("industry", "").strip()
         contact_name = request.form.get("contact_name", "").strip()
@@ -777,18 +896,19 @@ def onboarding():
             authorized=authorized,
             risk_score=risk_score,
             risk_level=risk_level,
+            verification_status=VERIFICATION_STATUS_PENDING,
+            verification_token=secrets.token_urlsafe(32),
+            verification_sent_at=datetime.utcnow(),
+            submitter_ip=client_ip,
         )
 
         db.session.add(record)
         db.session.commit()
-        email_status = send_client_confirmation_email(record)
-        admin_email_status = send_admin_notification_email(record)
+        verification_email_status = send_verification_email(record)
         return redirect(
             url_for(
-                "submission_success",
-                submission_id=record.id,
-                email_status=email_status,
-                admin_email_status=admin_email_status,
+                "submission_pending",
+                verification_email_status=verification_email_status,
             )
         )
 
@@ -801,9 +921,48 @@ def onboarding():
     )
 
 
+@app.route("/pending-verification")
+def submission_pending():
+    return render_template(
+        "pending_verification.html",
+        verification_email_status=request.args.get(
+            "verification_email_status", "unknown"
+        ),
+    )
+
+
+@app.route("/verify/<token>")
+def verify_submission(token):
+    record = ClientOnboarding.query.filter_by(verification_token=token).first_or_404()
+    already_verified = record.verification_status == VERIFICATION_STATUS_VERIFIED
+    if record.verification_status != VERIFICATION_STATUS_VERIFIED:
+        record.verification_status = VERIFICATION_STATUS_VERIFIED
+        record.verified_at = datetime.utcnow()
+        db.session.commit()
+
+    if already_verified:
+        email_status = "already_sent"
+        admin_email_status = "already_sent"
+    else:
+        email_status = send_client_confirmation_email(record)
+        admin_email_status = send_admin_notification_email(record)
+
+    return redirect(
+        url_for(
+            "submission_success",
+            submission_id=record.id,
+            email_status=email_status,
+            admin_email_status=admin_email_status,
+        )
+    )
+
+
 @app.route("/success/<int:submission_id>")
 def submission_success(submission_id):
     record = ClientOnboarding.query.get_or_404(submission_id)
+    if record.verification_status != VERIFICATION_STATUS_VERIFIED:
+        return redirect(url_for("submission_pending"))
+
     email_status = request.args.get("email_status", "unknown")
     admin_email_status = request.args.get("admin_email_status", "unknown")
     report_context = build_report_context(record)
@@ -857,6 +1016,19 @@ def resend_client_report(submission_id):
         return auth_redirect
 
     record = ClientOnboarding.query.get_or_404(submission_id)
+    if record.verification_status != VERIFICATION_STATUS_VERIFIED:
+        notice = (
+            "The client report was not sent because this submission is still "
+            "pending email verification."
+        )
+        return redirect(
+            url_for(
+                "admin_submissions",
+                notice=notice,
+                notice_type="warning",
+            )
+        )
+
     status = send_client_confirmation_email(record)
     if status == "sent":
         notice = f"Client PDF report was resent to {record.email}."
@@ -870,6 +1042,37 @@ def resend_client_report(submission_id):
             "credentials, then try again."
         )
         notice_type = "warning"
+
+    return redirect(
+        url_for("admin_submissions", notice=notice, notice_type=notice_type)
+    )
+
+
+@app.route("/kryptnet-secure-review/submissions/<int:submission_id>/resend-verification", methods=["POST"])
+def resend_verification_email(submission_id):
+    auth_redirect = require_admin()
+    if auth_redirect:
+        return auth_redirect
+
+    record = ClientOnboarding.query.get_or_404(submission_id)
+    if record.verification_status == VERIFICATION_STATUS_VERIFIED:
+        notice = "This submission is already verified."
+        notice_type = "hint"
+    else:
+        if not record.verification_token:
+            record.verification_token = secrets.token_urlsafe(32)
+        record.verification_sent_at = datetime.utcnow()
+        db.session.commit()
+        status = send_verification_email(record)
+        if status == "sent":
+            notice = f"Verification email was resent to {record.email}."
+            notice_type = "hint"
+        elif status == "skipped":
+            notice = "Verification email could not be sent because SMTP is not configured."
+            notice_type = "warning"
+        else:
+            notice = "Verification email could not be sent. Check SMTP settings and Render logs."
+            notice_type = "warning"
 
     return redirect(
         url_for("admin_submissions", notice=notice, notice_type=notice_type)
