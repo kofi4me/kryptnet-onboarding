@@ -66,6 +66,32 @@ Notes:
 - Set strong values for `SECRET_KEY`, `ADMIN_USERNAME`, and `ADMIN_PASSWORD` before deployment.
 - Run `flask db upgrade` during deploy so the target database is on the expected schema.
 
+## Bluehost/cPanel deployment
+
+This app includes `passenger_wsgi.py` for cPanel Passenger/Python App hosting.
+
+Recommended cPanel settings:
+
+- Application root: the uploaded app folder, for example `kryptnet_onboarding`
+- Application URL: `onboarding.kryptnet.org`
+- Application startup file: `passenger_wsgi.py`
+- Application entry point: `application`
+- Configuration file for pip install: `requirements.txt`
+
+Use a persistent database. For Bluehost MySQL, set `DATABASE_URL` in this format:
+
+```text
+mysql+pymysql://DB_USER:DB_PASSWORD@localhost/DB_NAME
+```
+
+After dependencies are installed and environment variables are set, run:
+
+```bash
+flask db upgrade
+```
+
+Then restart the Python application in cPanel.
+
 ## Admin access
 
 - Admin login: `/kryptnet-secure-review`
