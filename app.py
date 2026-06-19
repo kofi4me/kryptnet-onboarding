@@ -61,12 +61,21 @@ SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "KryptNet")
 ADMIN_NOTIFICATION_EMAIL = os.getenv(
     "ADMIN_NOTIFICATION_EMAIL", "support@kryptnet.org"
 ).strip()
+KRYPTSCAN_DOMAIN = os.getenv("KRYPTSCAN_DOMAIN", "kryptscan.kryptnet.org").strip().lower()
 
 LOGO_CANDIDATES = (
     "kryptnet-logo.png",
     "kryptnet_logo.png",
     "kryptnet_logo.png.png",
 )
+
+
+@app.before_request
+def route_kryptscan_subdomain():
+    host = request.host.split(":", 1)[0].lower()
+    if host == KRYPTSCAN_DOMAIN and request.path == "/":
+        return redirect("/kryptscan/")
+    return None
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VERIFICATION_STATUS_PENDING = "Pending Verification"

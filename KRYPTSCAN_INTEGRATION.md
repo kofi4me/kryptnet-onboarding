@@ -10,7 +10,13 @@ After deployment, open:
 https://<your-existing-render-domain>/kryptscan/
 ```
 
-If a custom domain is configured, KryptScan can also be reached from that domain under:
+If the custom domain `kryptscan.kryptnet.org` is pointed to the same Render service, the root domain redirects to KryptScan:
+
+```text
+https://kryptscan.kryptnet.org
+```
+
+The direct mounted path also works:
 
 ```text
 /kryptscan/
@@ -45,9 +51,25 @@ This is enough for live UI testing, registration, free scan preview, report UI, 
 Add these to the existing onboarding Render service when ready:
 
 ```env
+KRYPTSCAN_DOMAIN=kryptscan.kryptnet.org
+TRUSTED_HOSTS=kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com
 OPENAI_API_KEY=<openai-api-key>
 KRYPTNET_PAYMENT_WEBHOOK_SECRET=<payment-webhook-secret>
 KRYPTNET_PAYMENT_API_URL=<payment-checkout-base-url>
+```
+
+In Render Custom Domains, add:
+
+```text
+kryptscan.kryptnet.org
+```
+
+In Bluehost DNS, create the CNAME record Render provides. It is usually:
+
+```text
+Host/Name: kryptscan
+Type: CNAME
+Points to/Value: <your-render-service>.onrender.com
 ```
 
 For real OTP/report emails from KryptScan, also add:
