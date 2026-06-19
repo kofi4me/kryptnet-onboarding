@@ -1,0 +1,2 @@
+"""Sentinel Scope application package."""
+

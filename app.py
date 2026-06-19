@@ -12,7 +12,9 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from reportlab.lib.pagesizes import letter
 from reportlab.pdfgen import canvas
+from a2wsgi import ASGIMiddleware
 from werkzeug.datastructures import MultiDict
+from werkzeug.middleware.dispatcher import DispatcherMiddleware
 from werkzeug.middleware.proxy_fix import ProxyFix
 
 
@@ -1164,7 +1166,34 @@ def healthcheck():
     )
 
 
+def mount_kryptscan_app():
+    os.environ.setdefault("APP_NAME", "Kryptnet Security Assessment")
+    os.environ.setdefault("APP_ENV", "staging")
+    os.environ.setdefault("APP_SECRET", app.config["SECRET_KEY"])
+    os.environ.setdefault("DATABASE_PATH", "../instance/kryptscan.db")
+    os.environ.setdefault("REPORTS_DIR", "../instance/kryptscan_reports")
+    os.environ.setdefault("SESSION_COOKIE_NAME", "kryptscan_session")
+    os.environ.setdefault("SESSION_COOKIE_SECURE", "true" if app.config["SESSION_COOKIE_SECURE"] else "false")
+    os.environ.setdefault("TRUSTED_HOSTS", "kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com,localhost,127.0.0.1")
+    os.environ.setdefault("EMAIL_DELIVERY", os.getenv("EMAIL_DELIVERY", "console"))
+    os.environ.setdefault("EMAIL_FROM", os.getenv("SMTP_FROM_EMAIL", "security@kryptnet.org"))
+    os.environ.setdefault("KRYPTNET_PAYMENT_API_URL", "https://payments.kryptnet.com/api")
+    os.environ.setdefault("PAYMENT_DEMO_MODE", "false")
+    os.environ.setdefault("SCANNER_BACKEND", "mock")
+    os.environ.setdefault("ALLOW_PRIVATE_NETWORK_TARGETS", "false")
+
+    from kryptscan.app.db import init_db as init_kryptscan_db
+    from kryptscan.app.main import app as kryptscan_asgi_app
+
+    init_kryptscan_db()
+    app.wsgi_app = DispatcherMiddleware(
+        app.wsgi_app,
+        {"/kryptscan": ASGIMiddleware(kryptscan_asgi_app)},
+    )
+
+
 ensure_database_tables()
+mount_kryptscan_app()
 
 
 if __name__ == "__main__":

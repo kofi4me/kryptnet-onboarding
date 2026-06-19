@@ -4,5 +4,6 @@ __pycache__/
 .env
 kryptnet_onboarding.db
 instance/*.db
+instance/kryptscan_reports/
 server.out.log
 server.err.log

@@ -2,6 +2,8 @@
 
 Flask application for collecting MSP onboarding submissions, calculating a simple risk score, and reviewing submissions through an authenticated admin area.
 
+KryptScan is mounted into this existing Render service under `/kryptscan/` so both apps can run without buying another Render web service. See [KRYPTSCAN_INTEGRATION.md](KRYPTSCAN_INTEGRATION.md).
+
 ## Features
 
 - Public onboarding form for new client intake
@@ -130,3 +132,6 @@ flask db downgrade
 ```
 
 For a brand-new environment, run `flask db upgrade` before starting the app.
+# KryptNet Onboarding
+
+KryptScan is now mounted into this existing Render service under `/kryptscan/` so both apps can run without buying another Render web service. See [KRYPTSCAN_INTEGRATION.md](KRYPTSCAN_INTEGRATION.md).
