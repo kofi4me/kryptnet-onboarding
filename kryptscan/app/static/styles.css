@@ -981,11 +981,32 @@ button.ghost {
 .tier-card {
   display: grid;
   gap: 0.35rem;
+  min-height: 118px;
+  align-content: start;
+  padding: 0.95rem 1.1rem;
+  border-radius: 18px;
   text-align: left;
   color: var(--ink);
+  text-decoration: none;
   background: rgba(255, 255, 255, 0.78);
   border: 1px solid rgba(20, 32, 51, 0.1);
   box-shadow: none;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    background 180ms ease,
+    color 180ms ease;
+}
+
+.mode-card:hover,
+.tier-card:hover {
+  transform: translateY(-1px);
+}
+
+.onboarding-card {
+  background: #fff;
+  border-color: rgba(42, 181, 127, 0.22);
 }
 
 .mode-card span,

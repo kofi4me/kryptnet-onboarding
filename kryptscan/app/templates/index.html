@@ -283,23 +283,31 @@
           <div class="section-head command-head">
             <div>
               <div class="eyebrow">Choose Tool</div>
-              <h2>Select how you want to test.</h2>
+              <h2>Select a KryptNet service.</h2>
               <p class="inline-copy">
-                Choose Vulnerability Assessment for automated risk visibility or Ethical Pen-Testing
-                for deeper MSP-led testing under approved scope.
+                Start with a free vulnerability test, run a paid full assessment, request ethical
+                pen-testing, or complete KryptNet onboarding.
               </p>
             </div>
             <button id="choice-logout-button" class="ghost">Log Out</button>
           </div>
           <div class="mode-selector" aria-label="Tool choice">
-            <button type="button" class="mode-card" data-choice-mode="vulnerability_assessment">
+            <button type="button" class="mode-card" data-choice-mode="vulnerability_assessment" data-choice-tier="free_preview">
+              <span>Free Vulnerability Test</span>
+              <small>Partial vulnerability scan with a web-only summary.</small>
+            </button>
+            <button type="button" class="mode-card" data-choice-mode="ethical_pentesting" data-choice-tier="full_scan">
+              <span>Pen-Testing</span>
+              <small>Paid ethical pen-testing for approved targets.</small>
+            </button>
+            <button type="button" class="mode-card" data-choice-mode="vulnerability_assessment" data-choice-tier="full_scan">
               <span>Vulnerability Assessment</span>
-              <small>Automated exposure, service, and known-risk review.</small>
+              <small>Paid deeper scan with PDF report delivery.</small>
             </button>
-            <button type="button" class="mode-card" data-choice-mode="ethical_pentesting">
-              <span>Ethical Pen-Testing</span>
-              <small>Full-stack MSP testing with rules of engagement.</small>
-            </button>
+            <a class="mode-card onboarding-card" href="/onboarding">
+              <span>KryptNet Onboarding</span>
+              <small>Open the company onboarding and security intake form.</small>
+            </a>
           </div>
         </article>
       </section>

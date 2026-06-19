@@ -39,7 +39,7 @@ document.addEventListener("DOMContentLoaded", () => {
     button.addEventListener("click", () => selectScanTier(button.dataset.scanTier));
   });
   document.querySelectorAll("[data-choice-mode]").forEach((button) => {
-    button.addEventListener("click", () => openSelectedTool(button.dataset.choiceMode));
+    button.addEventListener("click", () => openSelectedTool(button.dataset.choiceMode, button.dataset.choiceTier));
   });
   loadDashboard(false, { showChoiceWhenAuthenticated: true });
 });
@@ -90,8 +90,11 @@ function showDashboardPage() {
   window.location.hash = "dashboard";
 }
 
-function openSelectedTool(mode) {
+function openSelectedTool(mode, tier = null) {
   selectAssessmentMode(mode);
+  if (tier) {
+    selectScanTier(tier);
+  }
   showDashboardPage();
 }
 
