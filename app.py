@@ -7,7 +7,7 @@ import secrets
 import smtplib
 import textwrap
 
-from flask import Flask, jsonify, redirect, render_template, request, session, url_for
+from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from reportlab.lib.pagesizes import letter
@@ -76,6 +76,22 @@ def route_kryptscan_subdomain():
     if host == KRYPTSCAN_DOMAIN and request.path == "/":
         return redirect("/kryptscan/")
     return None
+
+
+@app.route("/kryptscan/")
+def kryptscan_home():
+    return send_from_directory(
+        os.path.join(app.root_path, "kryptscan", "app", "templates"),
+        "index.html",
+    )
+
+
+@app.route("/kryptscan/static/<path:filename>")
+def kryptscan_static(filename):
+    return send_from_directory(
+        os.path.join(app.root_path, "kryptscan", "app", "static"),
+        filename,
+    )
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VERIFICATION_STATUS_PENDING = "Pending Verification"
@@ -1203,7 +1219,7 @@ def mount_kryptscan_app():
     init_kryptscan_db()
     app.wsgi_app = DispatcherMiddleware(
         app.wsgi_app,
-        {"/kryptscan": ASGIMiddleware(kryptscan_asgi_app)},
+        {"/kryptscan-app": ASGIMiddleware(kryptscan_asgi_app)},
     )
 
 

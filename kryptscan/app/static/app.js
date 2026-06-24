@@ -8,7 +8,7 @@ const state = {
   refreshTimer: null,
 };
 
-const API_BASE = window.location.pathname.startsWith("/kryptscan") ? "/kryptscan" : "";
+const API_BASE = window.location.pathname.startsWith("/kryptscan") ? "/kryptscan-app" : "";
 
 function apiPath(path) {
   return `${API_BASE}${path}`;

@@ -98,6 +98,23 @@ instance/kryptscan_reports/
 
 These should remain runtime data and should not be committed.
 
+## Mounted Paths
+
+The visible KryptScan web page is served by Flask:
+
+```text
+/kryptscan/
+/kryptscan/static/
+```
+
+The FastAPI backend is mounted internally at:
+
+```text
+/kryptscan-app/
+```
+
+The browser JavaScript sends API calls there automatically.
+
 ## Future Upgrade
 
 The full scanner toolchain can still be deployed later on a separate VPS/scanner worker. This integrated Render service is mainly for the public web flow and lightweight testing.
