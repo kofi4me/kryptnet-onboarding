@@ -1177,13 +1177,19 @@ def healthcheck():
 
 def mount_kryptscan_app():
     os.environ.setdefault("APP_NAME", "Kryptnet Security Assessment")
-    os.environ.setdefault("APP_ENV", "staging")
+    os.environ["APP_ENV"] = os.getenv("KRYPTSCAN_APP_ENV", "staging")
     os.environ.setdefault("APP_SECRET", app.config["SECRET_KEY"])
     os.environ.setdefault("DATABASE_PATH", "../instance/kryptscan.db")
     os.environ.setdefault("REPORTS_DIR", "../instance/kryptscan_reports")
     os.environ.setdefault("SESSION_COOKIE_NAME", "kryptscan_session")
     os.environ.setdefault("SESSION_COOKIE_SECURE", "true" if app.config["SESSION_COOKIE_SECURE"] else "false")
-    os.environ.setdefault("TRUSTED_HOSTS", "kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com,localhost,127.0.0.1")
+    trusted_hosts = os.getenv("KRYPTSCAN_TRUSTED_HOSTS") or os.getenv("TRUSTED_HOSTS", "")
+    required_hosts = "kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com,localhost,127.0.0.1"
+    os.environ["TRUSTED_HOSTS"] = ",".join(
+        item
+        for item in [trusted_hosts, required_hosts]
+        if item
+    )
     os.environ.setdefault("EMAIL_DELIVERY", os.getenv("EMAIL_DELIVERY", "console"))
     os.environ.setdefault("EMAIL_FROM", os.getenv("SMTP_FROM_EMAIL", "security@kryptnet.org"))
     os.environ.setdefault("KRYPTNET_PAYMENT_API_URL", "https://payments.kryptnet.com/api")

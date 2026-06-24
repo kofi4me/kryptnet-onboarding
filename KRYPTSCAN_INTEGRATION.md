@@ -52,11 +52,14 @@ Add these to the existing onboarding Render service when ready:
 
 ```env
 KRYPTSCAN_DOMAIN=kryptscan.kryptnet.org
-TRUSTED_HOSTS=kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com
+KRYPTSCAN_APP_ENV=staging
+KRYPTSCAN_TRUSTED_HOSTS=kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com
 OPENAI_API_KEY=<openai-api-key>
 KRYPTNET_PAYMENT_WEBHOOK_SECRET=<payment-webhook-secret>
 KRYPTNET_PAYMENT_API_URL=<payment-checkout-base-url>
 ```
+
+Use `KRYPTSCAN_APP_ENV=staging` while testing. Change it to `production` only after SMTP and payment webhook secrets are configured.
 
 In Render Custom Domains, add:
 
