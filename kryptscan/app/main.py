@@ -976,7 +976,15 @@ def complete_registration(
             "UPDATE organizations SET name = ? WHERE id = ?",
             (payload.company_name.strip(), user["organization_id"]),
         )
-        refreshed = auth_service.get_user_by_id(int(user["id"]))
+        refreshed = connection.execute(
+            """
+            SELECT users.*, organizations.name AS organization_name, organizations.email_domain
+            FROM users
+            JOIN organizations ON organizations.id = users.organization_id
+            WHERE users.id = ?
+            """,
+            (user["id"],),
+        ).fetchone()
         _audit(connection, user, "auth.registration_completed", {"user_id": user["id"]})
     return {"message": "Registration completed.", "user": _serialize_user(refreshed)}
 
