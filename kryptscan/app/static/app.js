@@ -15,21 +15,18 @@ function apiPath(path) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document
-    .getElementById("request-code-form")
-    .addEventListener("submit", handleRequestCode);
-  document
-    .getElementById("verify-code-form")
-    .addEventListener("submit", handleVerifyCode);
-  document.getElementById("registration-form").addEventListener("submit", handleCompleteRegistration);
-  document.getElementById("scan-form").addEventListener("submit", handleCreateScan);
-  document.getElementById("manual-finding-form").addEventListener("submit", handleAddManualFinding);
+  bindEvent("request-code-form", "submit", handleRequestCode);
+  bindEvent("email-verification-button", "click", handleRequestCode);
+  bindEvent("verify-code-form", "submit", handleVerifyCode);
+  bindEvent("registration-form", "submit", handleCompleteRegistration);
+  bindEvent("scan-form", "submit", handleCreateScan);
+  bindEvent("manual-finding-form", "submit", handleAddManualFinding);
   document.querySelectorAll("[data-plan]").forEach((button) => {
     button.addEventListener("click", () => handleCheckoutPlan(button.dataset.plan));
   });
-  document.getElementById("logout-button").addEventListener("click", handleLogout);
-  document.getElementById("choice-logout-button").addEventListener("click", handleLogout);
-  document.getElementById("report-download-button").addEventListener("click", () => {
+  bindEvent("logout-button", "click", handleLogout);
+  bindEvent("choice-logout-button", "click", handleLogout);
+  bindEvent("report-download-button", "click", () => {
     if (state.activeScanId) downloadReport(state.activeScanId);
   });
   document.querySelectorAll("[data-assessment-mode]").forEach((button) => {
@@ -43,6 +40,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   loadDashboard(false, { showChoiceWhenAuthenticated: true });
 });
+
+function bindEvent(id, eventName, handler) {
+  const element = document.getElementById(id);
+  if (element) element.addEventListener(eventName, handler);
+}
 
 function getCookie(name) {
   return document.cookie
@@ -185,26 +187,36 @@ async function handleCheckoutPlan(plan) {
 async function handleRequestCode(event) {
   event.preventDefault();
   const email = document.getElementById("email-input").value.trim();
-  state.email = email;
-
-  const response = await fetch(apiPath("/api/auth/request-code"), {
-    method: "POST",
-    headers: jsonHeaders(),
-    body: JSON.stringify({ email }),
-  });
-  const payload = await response.json();
-
-  if (!response.ok) {
-    setStatus("auth-status", payload.detail || "Unable to send verification code.", "error");
+  if (!email) {
+    setStatus("auth-status", "Enter your email address before requesting a verification code.", "error");
     return;
   }
+  state.email = email;
 
-  const isConsoleDelivery = payload.delivery === "console";
-  const message = isConsoleDelivery
-    ? `Verification code generated for ${payload.email}. Local testing mode is active, so read the code from the server terminal to continue.`
-    : `Verification code sent to ${payload.email}. Check your organizational inbox and spam folder.`;
-  setStatus("verify-status", message, "success");
-  showVerificationPage();
+  setStatus("auth-status", "Sending verification code...", "neutral");
+  try {
+    const response = await fetch(apiPath("/api/auth/request-code"), {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify({ email }),
+    });
+    const payload = await response.json();
+
+    if (!response.ok) {
+      setStatus("auth-status", payload.detail || "Unable to send verification code.", "error");
+      return;
+    }
+
+    const isConsoleDelivery = payload.delivery === "console";
+    const message = isConsoleDelivery
+      ? `Verification code generated for ${payload.email}. Local testing mode is active, so read the code from the server terminal to continue.`
+      : `Verification code sent to ${payload.email}. Check your organizational inbox and spam folder.`;
+    setStatus("verify-status", message, "success");
+    showVerificationPage();
+  } catch (error) {
+    setStatus("auth-status", "Unable to contact the verification service. Please refresh the page and try again.", "error");
+    return;
+  }
 }
 
 async function handleVerifyCode(event) {

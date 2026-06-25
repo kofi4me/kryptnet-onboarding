@@ -421,12 +421,22 @@ h4 {
 }
 
 .email-gate {
+  position: relative;
+  z-index: 2;
   display: grid;
   gap: 0.82rem;
   padding: 0.95rem;
   border-radius: 22px;
   border: 1px solid rgba(255, 255, 255, 0.14);
   background: rgba(255, 255, 255, 0.06);
+}
+
+.email-gate input,
+.email-gate button,
+.email-gate a {
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
 }
 
 .email-gate h2 {
