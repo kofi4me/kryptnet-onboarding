@@ -39,6 +39,10 @@ document.addEventListener("DOMContentLoaded", () => {
   loadDashboard(false, { showChoiceWhenAuthenticated: true });
 });
 
+function routeParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
+
 function bindEvent(id, eventName, handler) {
   const element = document.getElementById(id);
   if (element) element.addEventListener(eventName, handler);
@@ -79,6 +83,7 @@ function handleVerificationRedirect() {
   const params = new URLSearchParams(window.location.search);
   const sent = params.get("verification_sent");
   const verified = params.get("verified");
+  const next = params.get("next");
   const error = params.get("verification_error");
   const email = params.get("email");
   if (email) {
@@ -91,7 +96,13 @@ function handleVerificationRedirect() {
     showVerificationPage();
   }
   if (verified) {
-    setStatus("registration-status", "Email verified. Complete registration to continue.", "success");
+    if (next === "choose-tool") {
+      setStatus("dashboard-status", "Email verified. Choose a service to continue.", "success");
+      showToolChoicePage();
+    } else {
+      setStatus("registration-status", "Email verified. Complete registration to continue.", "success");
+      showRegistrationPage();
+    }
   }
   if (error) {
     setStatus("auth-status", error, "error");
@@ -374,6 +385,16 @@ async function handleLogout() {
 async function loadDashboard(showStatus = false, options = {}) {
   const response = await fetch(apiPath("/api/dashboard"));
   if (!response.ok) {
+    const verified = routeParam("verified");
+    const next = routeParam("next");
+    if (verified && next === "register") {
+      showRegistrationPage();
+      return;
+    }
+    if (verified && next === "choose-tool") {
+      showToolChoicePage();
+      return;
+    }
     showOnly("landing-page");
     return;
   }

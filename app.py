@@ -150,7 +150,9 @@ def kryptscan_verify_code_fallback():
         settings = get_kryptscan_settings()
         user = AuthService(settings, get_email_sender(settings)).verify_code(email, code)
         token = create_session_token(settings, int(user["id"]), user["email"])
-        response = redirect("/kryptscan/?verified=1#register")
+        profile_complete = bool(user["profile_completed_at"]) and bool(user["safe_use_accepted"])
+        next_step = "choose-tool" if profile_complete else "register"
+        response = redirect(f"/kryptscan/?verified=1&next={next_step}#{next_step}")
         response.set_cookie(
             settings.session_cookie_name,
             token,
