@@ -50,6 +50,18 @@ class SmtpEmailSender(BaseEmailSender):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
+    def _send_message(self, message: EmailMessage) -> None:
+        smtp_client = smtplib.SMTP_SSL if self.settings.smtp_use_ssl else smtplib.SMTP
+        with smtp_client(self.settings.smtp_host, self.settings.smtp_port, timeout=20) as smtp:
+            if not self.settings.smtp_use_ssl:
+                smtp.ehlo()
+                if self.settings.smtp_use_tls:
+                    smtp.starttls()
+                    smtp.ehlo()
+            if self.settings.smtp_username:
+                smtp.login(self.settings.smtp_username, self.settings.smtp_password)
+            smtp.send_message(message)
+
     def send_verification_code(self, email: str, code: str, domain: str) -> None:
         message = EmailMessage()
         message["Subject"] = f"{self.settings.app_name} verification code"
@@ -62,12 +74,7 @@ class SmtpEmailSender(BaseEmailSender):
             "If you did not request this code, ignore this message."
         )
 
-        with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port, timeout=30) as smtp:
-            if self.settings.smtp_use_tls:
-                smtp.starttls()
-            if self.settings.smtp_username:
-                smtp.login(self.settings.smtp_username, self.settings.smtp_password)
-            smtp.send_message(message)
+        self._send_message(message)
 
     def send_assessment_report(
         self,
@@ -94,12 +101,7 @@ class SmtpEmailSender(BaseEmailSender):
             filename=pdf_filename,
         )
 
-        with smtplib.SMTP(self.settings.smtp_host, self.settings.smtp_port, timeout=30) as smtp:
-            if self.settings.smtp_use_tls:
-                smtp.starttls()
-            if self.settings.smtp_username:
-                smtp.login(self.settings.smtp_username, self.settings.smtp_password)
-            smtp.send_message(message)
+        self._send_message(message)
 
 
 def get_email_sender(settings: Settings) -> BaseEmailSender:

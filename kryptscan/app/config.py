@@ -66,6 +66,7 @@ class Settings:
     smtp_username: str
     smtp_password: str
     smtp_use_tls: bool
+    smtp_use_ssl: bool
     scanner_backend: str
     nuclei_path: str
     nuclei_severity: str
@@ -152,6 +153,7 @@ def get_settings() -> Settings:
         smtp_username=_env("SMTP_USERNAME", ""),
         smtp_password=_env("SMTP_PASSWORD", ""),
         smtp_use_tls=_env_bool("SMTP_USE_TLS", True),
+        smtp_use_ssl=_env_bool("SMTP_USE_SSL", False),
         scanner_backend=_env("SCANNER_BACKEND", "mock").strip().lower(),
         nuclei_path=_env("NUCLEI_PATH", "nuclei"),
         nuclei_severity=_env("NUCLEI_SEVERITY", "critical,high,medium,low"),
