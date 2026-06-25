@@ -451,6 +451,27 @@ h4 {
   color: rgba(241, 246, 255, 0.86);
 }
 
+.onboarding-inline-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 52px;
+  padding: 0.85rem 1rem;
+  border-radius: 18px;
+  color: #f7f9fc;
+  text-decoration: none;
+  font-weight: 900;
+  text-align: center;
+  background: linear-gradient(135deg, var(--mint), var(--cobalt));
+  box-shadow: 0 16px 32px rgba(42, 181, 127, 0.2);
+  transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.onboarding-inline-action:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 20px 38px rgba(42, 181, 127, 0.26);
+}
+
 .landing-band,
 .landing-split,
 .closing-band {
