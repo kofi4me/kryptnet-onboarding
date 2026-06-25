@@ -110,12 +110,15 @@ def kryptscan_static(filename):
     )
 
 
-@app.route("/kryptscan/request-code", methods=["POST"])
+@app.route("/kryptscan/request-code", methods=["GET", "POST"])
 def kryptscan_request_code_fallback():
-    email = request.form.get("email", "").strip()
-    if not email:
-        return redirect("/kryptscan/?verification_error=Email%20address%20is%20required")
     try:
+        if request.method != "POST":
+            return redirect("/kryptscan/")
+        email = request.form.get("email", "").strip()
+        if not email:
+            return redirect("/kryptscan/?verification_error=Email%20address%20is%20required")
+
         from kryptscan.app.config import get_settings as get_kryptscan_settings
         from kryptscan.app.emailer import get_email_sender
         from kryptscan.app.services.auth import AuthService
@@ -123,7 +126,9 @@ def kryptscan_request_code_fallback():
         settings = get_kryptscan_settings()
         AuthService(settings, get_email_sender(settings)).request_code(email)
     except Exception as exc:
-        return redirect(f"/kryptscan/?verification_error={quote(str(exc))}")
+        app.logger.exception("KryptScan verification code request failed")
+        message = str(exc) or "Verification email could not be sent. Check SMTP settings in Render."
+        return redirect(f"/kryptscan/?verification_error={quote(message)}")
     return redirect(f"/kryptscan/?verification_sent=1&email={quote(email)}#verify-code")
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
