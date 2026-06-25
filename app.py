@@ -1239,7 +1239,15 @@ def mount_kryptscan_app():
         for item in [trusted_hosts, required_hosts]
         if item
     )
-    os.environ.setdefault("EMAIL_DELIVERY", os.getenv("EMAIL_DELIVERY", "console"))
+    smtp_ready = all(
+        [
+            os.getenv("SMTP_HOST", "").strip(),
+            os.getenv("SMTP_USERNAME", "").strip(),
+            os.getenv("SMTP_PASSWORD", "").strip(),
+            os.getenv("SMTP_FROM_EMAIL", "").strip(),
+        ]
+    )
+    os.environ.setdefault("EMAIL_DELIVERY", "smtp" if smtp_ready else "console")
     os.environ.setdefault("EMAIL_FROM", os.getenv("SMTP_FROM_EMAIL", "security@kryptnet.org"))
     os.environ.setdefault("KRYPTNET_PAYMENT_API_URL", "https://payments.kryptnet.com/api")
     os.environ.setdefault("PAYMENT_DEMO_MODE", "false")
