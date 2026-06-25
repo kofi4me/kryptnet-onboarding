@@ -15,7 +15,6 @@ function apiPath(path) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  bindEvent("verify-code-form", "submit", handleVerifyCode);
   bindEvent("registration-form", "submit", handleCompleteRegistration);
   bindEvent("scan-form", "submit", handleCreateScan);
   bindEvent("manual-finding-form", "submit", handleAddManualFinding);
@@ -79,6 +78,7 @@ function showVerificationPage() {
 function handleVerificationRedirect() {
   const params = new URLSearchParams(window.location.search);
   const sent = params.get("verification_sent");
+  const verified = params.get("verified");
   const error = params.get("verification_error");
   const email = params.get("email");
   if (email) {
@@ -90,9 +90,17 @@ function handleVerificationRedirect() {
     setStatus("verify-status", `Verification code sent to ${email || "your email"}. Check your inbox and spam folder.`, "success");
     showVerificationPage();
   }
+  if (verified) {
+    setStatus("registration-status", "Email verified. Complete registration to continue.", "success");
+  }
   if (error) {
     setStatus("auth-status", error, "error");
-    showOnly("landing-page");
+    if (window.location.hash === "#verify-code") {
+      setStatus("verify-status", error, "error");
+      showVerificationPage();
+    } else {
+      showOnly("landing-page");
+    }
   }
 }
 

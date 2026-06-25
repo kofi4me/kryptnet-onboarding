@@ -146,11 +146,12 @@
               <p class="inline-copy">Use the six-digit code sent to your organizational email.</p>
             </div>
           </div>
-          <form id="verify-code-form" class="stack">
+          <form id="verify-code-form" class="stack" action="/kryptscan/verify-code" method="post">
             <label>
               <span>Verification code</span>
               <input
                 id="code-input"
+                name="code"
                 type="text"
                 inputmode="numeric"
                 maxlength="6"
@@ -509,6 +510,6 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260625-email-fallback"></script>
+    <script src="./static/app.js?v=20260625-verify-fallback"></script>
   </body>
 </html>

@@ -125,11 +125,47 @@ def kryptscan_request_code_fallback():
 
         settings = get_kryptscan_settings()
         AuthService(settings, get_email_sender(settings)).request_code(email)
+        session["kryptscan_pending_email"] = email
     except Exception as exc:
         app.logger.exception("KryptScan verification code request failed")
         message = str(exc) or "Verification email could not be sent. Check SMTP settings in Render."
         return redirect(f"/kryptscan/?verification_error={quote(message)}")
     return redirect(f"/kryptscan/?verification_sent=1&email={quote(email)}#verify-code")
+
+
+@app.route("/kryptscan/verify-code", methods=["POST"])
+def kryptscan_verify_code_fallback():
+    code = request.form.get("code", "").strip()
+    email = session.get("kryptscan_pending_email", "").strip()
+    if not email:
+        return redirect("/kryptscan/?verification_error=Start%20again%20by%20requesting%20a%20new%20verification%20code")
+    if not code:
+        return redirect(f"/kryptscan/?verification_error=Verification%20code%20is%20required&email={quote(email)}#verify-code")
+    try:
+        from kryptscan.app.config import get_settings as get_kryptscan_settings
+        from kryptscan.app.emailer import get_email_sender
+        from kryptscan.app.security import create_session_token
+        from kryptscan.app.services.auth import AuthService
+
+        settings = get_kryptscan_settings()
+        user = AuthService(settings, get_email_sender(settings)).verify_code(email, code)
+        token = create_session_token(settings, int(user["id"]), user["email"])
+        response = redirect("/kryptscan/?verified=1#register")
+        response.set_cookie(
+            settings.session_cookie_name,
+            token,
+            httponly=True,
+            secure=settings.session_cookie_secure,
+            samesite="Lax",
+            path="/",
+            max_age=int(timedelta(hours=settings.session_ttl_hours).total_seconds()),
+        )
+        session.pop("kryptscan_pending_email", None)
+        return response
+    except Exception as exc:
+        app.logger.exception("KryptScan verification code validation failed")
+        message = str(exc) or "Verification failed. Request a new code and try again."
+        return redirect(f"/kryptscan/?verification_error={quote(message)}&email={quote(email)}#verify-code")
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VERIFICATION_STATUS_PENDING = "Pending Verification"
