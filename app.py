@@ -95,6 +95,7 @@ def kryptscan_home():
             httponly=False,
             secure=settings.session_cookie_secure,
             samesite="Lax",
+            path="/",
             max_age=int(timedelta(hours=settings.session_ttl_hours).total_seconds()),
         )
     return response
