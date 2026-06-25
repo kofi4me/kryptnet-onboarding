@@ -80,10 +80,24 @@ def route_kryptscan_subdomain():
 
 @app.route("/kryptscan/")
 def kryptscan_home():
-    return send_from_directory(
+    from kryptscan.app.config import get_settings as get_kryptscan_settings
+    from kryptscan.app.security import create_csrf_token
+
+    settings = get_kryptscan_settings()
+    response = send_from_directory(
         os.path.join(app.root_path, "kryptscan", "app", "templates"),
         "index.html",
     )
+    if not request.cookies.get(settings.csrf_cookie_name):
+        response.set_cookie(
+            settings.csrf_cookie_name,
+            create_csrf_token(settings),
+            httponly=False,
+            secure=settings.session_cookie_secure,
+            samesite="Lax",
+            max_age=int(timedelta(hours=settings.session_ttl_hours).total_seconds()),
+        )
+    return response
 
 
 @app.route("/kryptscan/static/<path:filename>")
