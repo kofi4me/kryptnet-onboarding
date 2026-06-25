@@ -15,8 +15,6 @@ function apiPath(path) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  bindEvent("request-code-form", "submit", handleRequestCode);
-  bindEvent("email-verification-button", "click", handleRequestCode);
   bindEvent("verify-code-form", "submit", handleVerifyCode);
   bindEvent("registration-form", "submit", handleCompleteRegistration);
   bindEvent("scan-form", "submit", handleCreateScan);
@@ -38,6 +36,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-choice-mode]").forEach((button) => {
     button.addEventListener("click", () => openSelectedTool(button.dataset.choiceMode, button.dataset.choiceTier));
   });
+  handleVerificationRedirect();
   loadDashboard(false, { showChoiceWhenAuthenticated: true });
 });
 
@@ -75,6 +74,26 @@ function showOnly(sectionId) {
 function showVerificationPage() {
   showOnly("verification-page");
   window.location.hash = "verify-code";
+}
+
+function handleVerificationRedirect() {
+  const params = new URLSearchParams(window.location.search);
+  const sent = params.get("verification_sent");
+  const error = params.get("verification_error");
+  const email = params.get("email");
+  if (email) {
+    const input = document.getElementById("email-input");
+    if (input) input.value = email;
+    state.email = email;
+  }
+  if (sent) {
+    setStatus("verify-status", `Verification code sent to ${email || "your email"}. Check your inbox and spam folder.`, "success");
+    showVerificationPage();
+  }
+  if (error) {
+    setStatus("auth-status", error, "error");
+    showOnly("landing-page");
+  }
 }
 
 function showToolChoicePage() {

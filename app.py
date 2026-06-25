@@ -6,6 +6,7 @@ import re
 import secrets
 import smtplib
 import textwrap
+from urllib.parse import quote
 
 from flask import Flask, jsonify, redirect, render_template, request, send_from_directory, session, url_for
 from flask_migrate import Migrate
@@ -107,6 +108,23 @@ def kryptscan_static(filename):
         os.path.join(app.root_path, "kryptscan", "app", "static"),
         filename,
     )
+
+
+@app.route("/kryptscan/request-code", methods=["POST"])
+def kryptscan_request_code_fallback():
+    email = request.form.get("email", "").strip()
+    if not email:
+        return redirect("/kryptscan/?verification_error=Email%20address%20is%20required")
+    try:
+        from kryptscan.app.config import get_settings as get_kryptscan_settings
+        from kryptscan.app.emailer import get_email_sender
+        from kryptscan.app.services.auth import AuthService
+
+        settings = get_kryptscan_settings()
+        AuthService(settings, get_email_sender(settings)).request_code(email)
+    except Exception as exc:
+        return redirect(f"/kryptscan/?verification_error={quote(str(exc))}")
+    return redirect(f"/kryptscan/?verification_sent=1&email={quote(email)}#verify-code")
 
 EMAIL_REGEX = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 VERIFICATION_STATUS_PENDING = "Pending Verification"
