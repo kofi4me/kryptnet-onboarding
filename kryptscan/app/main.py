@@ -1151,7 +1151,6 @@ def create_payment_intent(
 ) -> dict:
     _rate_limit(request, "payments.intent", limit=20, window_seconds=60)
     _require_owner(user)
-    _require_completed_registration(user)
     plan = _plan_details(payload.plan)
     return {
         "provider": "kryptnet_payment_api",
@@ -1171,7 +1170,6 @@ def create_payment_checkout(
 ) -> dict:
     _rate_limit(request, "payments.checkout", limit=10, window_seconds=60)
     _require_owner(user)
-    _require_completed_registration(user)
     plan = _plan_details(payload.plan)
     provider_reference = f"kryptnet_{secrets.token_hex(12)}"
     now = utcnow().isoformat()
@@ -1580,7 +1578,6 @@ def create_scan(
 ) -> ScanSummary:
     _rate_limit(request, "scans.create", limit=6, window_seconds=60)
     _require_owner_or_analyst(user)
-    _require_completed_registration(user)
     asset_type = payload.asset_type or infer_asset_type(payload.target)
     if asset_type not in {"website", "network"}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported target type.")

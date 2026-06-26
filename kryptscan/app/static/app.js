@@ -5,6 +5,7 @@ const state = {
   activeScanId: null,
   assessmentMode: "vulnerability_assessment",
   scanTier: "free_preview",
+  selectedService: "free_preview",
   refreshTimer: null,
 };
 
@@ -131,11 +132,13 @@ function showDashboardPage() {
 }
 
 function openSelectedTool(mode, tier = null) {
+  state.selectedService = tier === "free_preview" ? "free_preview" : mode;
   selectAssessmentMode(mode);
   if (tier) {
     selectScanTier(tier);
   }
   showDashboardPage();
+  updateServiceWorkspace();
 }
 
 function selectAssessmentMode(mode) {
@@ -170,10 +173,14 @@ function selectAssessmentMode(mode) {
   if (state.dashboard) {
     renderCommercialReadiness(state.dashboard);
   }
+  updateServiceWorkspace();
 }
 
 function selectScanTier(tier, options = {}) {
   state.scanTier = tier;
+  if (tier === "free_preview") {
+    state.selectedService = "free_preview";
+  }
   document.getElementById("scan-tier-input").value = tier;
   document.querySelectorAll("[data-scan-tier]").forEach((button) => {
     button.classList.toggle("active", button.dataset.scanTier === tier);
@@ -182,6 +189,7 @@ function selectScanTier(tier, options = {}) {
   if (!options.silent && state.dashboard) {
     renderCommercialReadiness(state.dashboard);
   }
+  updateServiceWorkspace();
 }
 
 function updateScanSubmitText() {
@@ -193,6 +201,33 @@ function updateScanSubmitText() {
     submit.textContent = "Run Full Vulnerability Scan";
   } else {
     submit.textContent = "Run Free Vulnerability Scan";
+  }
+}
+
+function selectedServiceRequiresPayment() {
+  return (
+    state.assessmentMode === "ethical_pentesting" ||
+    (state.assessmentMode === "vulnerability_assessment" && state.scanTier === "full_scan")
+  );
+}
+
+function updateServiceWorkspace() {
+  const paymentPanel = document.getElementById("payment-panel");
+  const scanForm = document.getElementById("scan-form");
+  const requiresPayment = selectedServiceRequiresPayment();
+
+  if (paymentPanel) {
+    paymentPanel.classList.toggle("hidden", !requiresPayment);
+  }
+  if (scanForm) {
+    scanForm.classList.toggle("hidden", requiresPayment);
+  }
+  if (requiresPayment) {
+    setStatus(
+      "dashboard-status",
+      "This service requires payment. The KryptNet payment link will be connected here when provided.",
+      "neutral"
+    );
   }
 }
 
@@ -387,10 +422,6 @@ async function loadDashboard(showStatus = false, options = {}) {
   if (!response.ok) {
     const verified = routeParam("verified");
     const next = routeParam("next");
-    if (verified && next === "register") {
-      showRegistrationPage();
-      return;
-    }
     if (verified && next === "choose-tool") {
       showToolChoicePage();
       return;
@@ -406,8 +437,6 @@ async function loadDashboard(showStatus = false, options = {}) {
   if (payload.user?.role === "client_viewer") {
     showDashboardPage();
     await loadClientPortal();
-  } else if (!payload.user?.profile_complete) {
-    showRegistrationPage();
   } else if (options.showChoiceWhenAuthenticated) {
     showToolChoicePage();
   } else {
@@ -523,7 +552,6 @@ function renderDashboard(payload) {
     "dashboard-title"
   ).textContent = `${payload.organization.name} Security Command`;
   const clientOnly = payload.user?.role === "client_viewer";
-  document.getElementById("payment-panel").classList.toggle("hidden", payload.user?.role !== "owner");
   document.getElementById("scan-form").classList.toggle("hidden", clientOnly);
   document.getElementById("manual-finding-form").classList.toggle("hidden", clientOnly || !state.activeScanId);
   document.getElementById("client-portal-panel").classList.toggle("hidden", !clientOnly);
@@ -533,6 +561,7 @@ function renderDashboard(payload) {
   renderMembers(payload.members || []);
   renderPayments(payload.payments || []);
   renderAudit(payload.audit_events || []);
+  updateServiceWorkspace();
 
   const statsGrid = document.getElementById("stats-grid");
   const toolchainGrid = document.getElementById("toolchain-grid");
