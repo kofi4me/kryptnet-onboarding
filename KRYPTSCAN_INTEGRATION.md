@@ -79,7 +79,7 @@ For real OTP/report emails from KryptScan, also add:
 
 ```env
 EMAIL_DELIVERY=smtp
-EMAIL_FROM=security@kryptnet.org
+EMAIL_FROM=support@kryptnet.org
 SMTP_HOST=<smtp-host>
 SMTP_PORT=587
 SMTP_USERNAME=<smtp-user>

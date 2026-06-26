@@ -1304,7 +1304,7 @@ def mount_kryptscan_app():
         os.environ["EMAIL_DELIVERY"] = "smtp"
     else:
         os.environ.setdefault("EMAIL_DELIVERY", requested_email_delivery or "console")
-    os.environ.setdefault("EMAIL_FROM", os.getenv("SMTP_FROM_EMAIL", "security@kryptnet.org"))
+    os.environ.setdefault("EMAIL_FROM", os.getenv("SMTP_FROM_EMAIL", "support@kryptnet.org"))
     os.environ.setdefault("KRYPTNET_PAYMENT_API_URL", "https://payments.kryptnet.com/api")
     os.environ.setdefault("PAYMENT_DEMO_MODE", "false")
     os.environ.setdefault("SCANNER_BACKEND", "mock")
