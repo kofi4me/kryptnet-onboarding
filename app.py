@@ -124,13 +124,23 @@ def kryptscan_request_code_fallback():
         from kryptscan.app.services.auth import AuthService
 
         settings = get_kryptscan_settings()
-        AuthService(settings, get_email_sender(settings)).request_code(email)
+        result = AuthService(settings, get_email_sender(settings)).request_code(email)
+        app.logger.info(
+            "KryptScan verification requested for %s using %s delivery from %s via %s:%s",
+            email,
+            result.get("delivery", settings.email_delivery),
+            settings.email_from,
+            settings.smtp_host or "not-configured",
+            settings.smtp_port,
+        )
         session["kryptscan_pending_email"] = email
     except Exception as exc:
         app.logger.exception("KryptScan verification code request failed")
         message = str(exc) or "Verification email could not be sent. Check SMTP settings in Render."
         return redirect(f"/kryptscan/?verification_error={quote(message)}")
-    return redirect(f"/kryptscan/?verification_sent=1&email={quote(email)}#verify-code")
+    return redirect(
+        f"/kryptscan/?verification_sent=1&email={quote(email)}&delivery={quote(result.get('delivery', settings.email_delivery))}#verify-code"
+    )
 
 
 @app.route("/kryptscan/verify-code", methods=["POST"])

@@ -85,6 +85,7 @@ function handleVerificationRedirect() {
   const sent = params.get("verification_sent");
   const verified = params.get("verified");
   const next = params.get("next");
+  const delivery = params.get("delivery");
   const error = params.get("verification_error");
   const email = params.get("email");
   if (email) {
@@ -93,7 +94,11 @@ function handleVerificationRedirect() {
     state.email = email;
   }
   if (sent) {
-    setStatus("verify-status", `Verification code sent to ${email || "your email"}. Check your inbox and spam folder.`, "success");
+    const message =
+      delivery === "console"
+        ? `Verification code was generated for ${email || "your email"}, but email delivery is in console mode. Check Render logs or set EMAIL_DELIVERY=smtp.`
+        : `Verification code sent to ${email || "your email"}. Check your inbox and spam folder.`;
+    setStatus("verify-status", message, delivery === "console" ? "error" : "success");
     showVerificationPage();
   }
   if (verified) {
@@ -345,6 +350,10 @@ async function handleCompleteRegistration(event) {
 async function handleCreateScan(event) {
   event.preventDefault();
   const target = document.getElementById("target-input").value.trim();
+  if (!target) {
+    setStatus("dashboard-status", "Enter a domain name or IP address before starting the scan.", "error");
+    return;
+  }
   const assessment_mode = document.getElementById("assessment-mode-input").value;
   const scan_tier = document.getElementById("scan-tier-input").value;
   const body = { target, assessment_mode, scan_tier };
@@ -359,6 +368,7 @@ async function handleCreateScan(event) {
     body.known_vulnerabilities = document.getElementById("known-vulnerabilities-input").value.trim() || null;
   }
 
+  setStatus("dashboard-status", `Starting ${formatMode(assessment_mode)} for ${target}...`, "neutral");
   const response = await fetch(apiPath("/api/scans"), {
     method: "POST",
     headers: jsonHeaders(),

@@ -56,6 +56,7 @@ from kryptscan.app.services.ownership import (
     build_scan_protocols,
     infer_asset_type,
     normalize_assessment_mode,
+    normalize_target,
 )
 from kryptscan.app.services.pdf_report import write_pdf_report
 from kryptscan.app.services.reporting import build_assessment_report
@@ -1594,9 +1595,24 @@ def create_scan(
             detail="Ethical Pen-Testing is a paid full testing service only.",
         )
     selected_backend = "free_preview" if scan_tier == "free_preview" else resolve_backend_name(settings, asset_type, assessment_mode)
+    if scan_tier == "full_scan":
+        with get_connection() as connection:
+            _require_entitlement(connection, user)
 
     try:
-        authorization = authorize_target(user["email_domain"], payload.target, asset_type)
+        if scan_tier == "free_preview":
+            normalized_target, target_kind = normalize_target(payload.target, asset_type)
+            authorization = {
+                "normalized_target": normalized_target,
+                "authorization_method": "free-preview-public-target",
+                "verification_note": (
+                    "Free vulnerability preview performs limited, non-invasive public checks. "
+                    "Paid full assessment and ethical pen-testing require stronger authorization."
+                ),
+                "target_kind": target_kind,
+            }
+        else:
+            authorization = authorize_target(user["email_domain"], payload.target, asset_type)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     _require_target_network_policy(
@@ -1644,8 +1660,6 @@ def create_scan(
             scan_protocols.append(f"Known vulnerabilities to validate: {payload.known_vulnerabilities.strip()}")
 
     with get_connection() as connection:
-        if scan_tier == "full_scan":
-            _require_entitlement(connection, user)
         connection.execute(
             """
             INSERT INTO targets (

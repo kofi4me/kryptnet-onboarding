@@ -61,6 +61,7 @@ class Settings:
     allow_private_network_targets: bool
     email_delivery: str
     email_from: str
+    email_from_name: str
     smtp_host: str
     smtp_port: int
     smtp_username: str
@@ -148,6 +149,7 @@ def get_settings() -> Settings:
         allow_private_network_targets=_env_bool("ALLOW_PRIVATE_NETWORK_TARGETS", False),
         email_delivery=_env("EMAIL_DELIVERY", "console").strip().lower(),
         email_from=_env("EMAIL_FROM", "security@example.com"),
+        email_from_name=_env("SMTP_FROM_NAME", "KryptNet"),
         smtp_host=_env("SMTP_HOST", ""),
         smtp_port=_env_int("SMTP_PORT", 587),
         smtp_username=_env("SMTP_USERNAME", ""),

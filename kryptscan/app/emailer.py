@@ -50,6 +50,9 @@ class SmtpEmailSender(BaseEmailSender):
     def __init__(self, settings: Settings) -> None:
         self.settings = settings
 
+    def _from_header(self) -> str:
+        return f"{self.settings.email_from_name} <{self.settings.email_from}>"
+
     def _send_message(self, message: EmailMessage) -> None:
         smtp_client = smtplib.SMTP_SSL if self.settings.smtp_use_ssl else smtplib.SMTP
         with smtp_client(self.settings.smtp_host, self.settings.smtp_port, timeout=20) as smtp:
@@ -64,8 +67,8 @@ class SmtpEmailSender(BaseEmailSender):
 
     def send_verification_code(self, email: str, code: str, domain: str) -> None:
         message = EmailMessage()
-        message["Subject"] = f"{self.settings.app_name} verification code"
-        message["From"] = self.settings.email_from
+        message["Subject"] = "Your KryptScan verification code"
+        message["From"] = self._from_header()
         message["To"] = email
         message.set_content(
             "Use this code to authorize your vulnerability assessment account.\n\n"
@@ -86,7 +89,7 @@ class SmtpEmailSender(BaseEmailSender):
     ) -> None:
         message = EmailMessage()
         message["Subject"] = f"{self.settings.app_name} assessment report for {target}"
-        message["From"] = self.settings.email_from
+        message["From"] = self._from_header()
         message["To"] = email
         message.set_content(
             "Your vulnerability assessment has completed.\n\n"
