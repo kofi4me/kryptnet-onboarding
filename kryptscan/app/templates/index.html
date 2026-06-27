@@ -129,7 +129,7 @@
           <div class="eyebrow">Verification Required</div>
           <h1>Check your inbox.</h1>
           <p class="lede">
-            The verification code confirms that the request is tied to a real business email before
+            The verification code confirms that the request is tied to a real email identity before
             vulnerability assessment or ethical pen-testing tools are shown.
           </p>
           <p class="welcome-copy">
@@ -143,7 +143,7 @@
             <div>
               <div class="eyebrow">Code Verification</div>
               <h2>Enter your verification code.</h2>
-              <p class="inline-copy">Use the six-digit code sent to your organizational email.</p>
+              <p class="inline-copy">Use the six-digit code sent to your email. Gmail and other personal emails are accepted for free scans.</p>
             </div>
           </div>
           <form id="verify-code-form" class="stack" action="/kryptscan/verify-code" method="post">
@@ -268,7 +268,7 @@
               <div class="eyebrow">Assessment Request</div>
               <h2 id="dashboard-title">Start Security Assessment</h2>
               <p id="dashboard-subtitle" class="inline-copy">
-                Select the assessment mode, then enter one authorized domain name or IP address.
+                Select the assessment mode, confirm authorization, then enter one domain name or IP address you are allowed to test.
               </p>
             </div>
             <button id="logout-button" class="ghost">Log Out</button>
@@ -305,6 +305,10 @@
             <label>
               <span>Domain name or IP address</span>
               <input id="target-input" type="text" placeholder="example.com or 203.0.113.10" required />
+            </label>
+            <label class="check-option scan-authorization-option">
+              <input id="scan-authorization-input" type="checkbox" required />
+              <span>I confirm I own this target or have permission from the client/asset owner to run this scan.</span>
             </label>
             <div id="ethical-pentest-fields" class="ethical-fields hidden">
               <div class="form-grid">
@@ -511,6 +515,6 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260627-free-scan-flask-fallback"></script>
+    <script src="./static/app.js?v=20260627-personal-email-auth"></script>
   </body>
 </html>

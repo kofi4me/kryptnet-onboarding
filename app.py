@@ -168,6 +168,8 @@ def kryptscan_free_scan_fallback():
             return jsonify({"detail": "User session is no longer valid."}), 401
 
         body = request.get_json(silent=True) or {}
+        if body.get("authorization_confirmed") is not True:
+            return jsonify({"detail": "Confirm that you own the target or have client/asset-owner permission before scanning."}), 400
         target = str(body.get("target", "")).strip()
         if len(target) < 3:
             return jsonify({"detail": "Enter a valid domain name or IP address."}), 400

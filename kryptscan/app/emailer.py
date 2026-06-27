@@ -28,7 +28,7 @@ class ConsoleEmailSender(BaseEmailSender):
     def send_verification_code(self, email: str, code: str, domain: str) -> None:
         print(
             f"[{self.settings.app_name}] Verification code for {email} "
-            f"(authorized domain {domain}): {code}"
+            f"(verified email domain {domain}): {code}"
         )
 
     def send_assessment_report(
@@ -71,9 +71,9 @@ class SmtpEmailSender(BaseEmailSender):
         message["From"] = self._from_header()
         message["To"] = email
         message.set_content(
-            "Use this code to authorize your vulnerability assessment account.\n\n"
+            "Use this code to verify your KryptScan account for ethical vulnerability assessment access.\n\n"
             f"Verification code: {code}\n"
-            f"Authorized domain: {domain}\n\n"
+            f"Verified email domain: {domain}\n\n"
             "If you did not request this code, ignore this message."
         )
 
@@ -111,4 +111,3 @@ def get_email_sender(settings: Settings) -> BaseEmailSender:
     if settings.email_delivery == "smtp":
         return SmtpEmailSender(settings)
     return ConsoleEmailSender(settings)
-

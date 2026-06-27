@@ -20,10 +20,10 @@ class AuthService:
     def request_code(self, email: str) -> dict:
         normalized = email.strip().lower()
         if "@" not in normalized or normalized.startswith("@") or normalized.endswith("@"):
-            raise ValueError("Valid organizational email required.")
+            raise ValueError("Valid email address required.")
         domain = normalized.split("@", 1)[1]
         if "." not in domain:
-            raise ValueError("A business email domain is required.")
+            raise ValueError("A valid email domain is required.")
         code = generate_one_time_code()
         code_hash = hash_verification_code(self.settings.app_secret, normalized, code)
         created_at = utcnow()
@@ -82,7 +82,7 @@ class AuthService:
     def verify_code(self, email: str, code: str) -> Row:
         normalized = email.strip().lower()
         if "@" not in normalized:
-            raise ValueError("Valid organizational email required.")
+            raise ValueError("Valid email address required.")
         expected_hash = hash_verification_code(self.settings.app_secret, normalized, code)
         now = utcnow()
 
@@ -147,4 +147,3 @@ class AuthService:
                 """,
                 (user_id,),
             ).fetchone()
-

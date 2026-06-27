@@ -356,7 +356,12 @@ async function handleCreateScan(event) {
   }
   const assessment_mode = document.getElementById("assessment-mode-input").value;
   const scan_tier = document.getElementById("scan-tier-input").value;
-  const body = { target, assessment_mode, scan_tier };
+  const authorizationConfirmed = document.getElementById("scan-authorization-input")?.checked === true;
+  if (!authorizationConfirmed) {
+    setStatus("dashboard-status", "Confirm that you own the target or have client/asset-owner permission before scanning.", "error");
+    return;
+  }
+  const body = { target, assessment_mode, scan_tier, authorization_confirmed: authorizationConfirmed };
   if (assessment_mode === "ethical_pentesting") {
     body.pentest_depth = document.getElementById("pentest-depth-input").value;
     body.validation_mode = document.getElementById("validation-mode-input").value;
