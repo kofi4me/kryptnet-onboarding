@@ -1,6 +1,7 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 from email.message import EmailMessage
 from io import BytesIO
+import json
 import os
 import re
 import secrets
@@ -142,6 +143,167 @@ def kryptscan_request_code_fallback():
         f"/kryptscan/?verification_sent=1&email={quote(email)}&delivery={quote(result.get('delivery', settings.email_delivery))}#verify-code"
     )
 
+
+@app.route("/kryptscan/free-scan", methods=["POST"])
+def kryptscan_free_scan_fallback():
+    try:
+        from kryptscan.app.config import get_settings as get_kryptscan_settings
+        from kryptscan.app.db import get_connection, init_db as init_kryptscan_db
+        from kryptscan.app.security import verify_session_token, utcnow
+        from kryptscan.app.services.auth import AuthService
+        from kryptscan.app.emailer import get_email_sender
+        from kryptscan.app.services.scanners.free_preview import FreePreviewScannerProvider
+        from kryptscan.app.services.ownership import infer_asset_type, normalize_target
+        from kryptscan.app.main import _require_target_network_policy
+
+        settings = get_kryptscan_settings()
+        token = request.cookies.get(settings.session_cookie_name)
+        payload = verify_session_token(settings, token)
+        if payload is None:
+            return jsonify({"detail": "Email verification is required before running a free scan."}), 401
+
+        user = AuthService(settings, get_email_sender(settings)).get_user_by_id(int(payload["uid"]))
+        if user is None or not user["is_verified"]:
+            return jsonify({"detail": "User session is no longer valid."}), 401
+
+        body = request.get_json(silent=True) or {}
+        target = str(body.get("target", "")).strip()
+        if len(target) < 3:
+            return jsonify({"detail": "Enter a valid domain name or IP address."}), 400
+
+        asset_type = body.get("asset_type") or infer_asset_type(target)
+        if asset_type not in {"website", "network"}:
+            return jsonify({"detail": "Unsupported target type."}), 400
+
+        normalized_target, target_kind = normalize_target(target, asset_type)
+        _require_target_network_policy(normalized_target, target_kind)
+        scan_protocols = [
+            "Free vulnerability preview: limited, non-invasive checks only",
+            "Summary report displayed in the web interface",
+            "PDF delivery requires a paid full scan",
+        ]
+        completed = FreePreviewScannerProvider().schedule(normalized_target, asset_type)
+        report = completed.report.model_copy(
+            update={
+                "scan_protocols": scan_protocols,
+                "scope_summary": f"Free vulnerability preview for {normalized_target}.",
+            }
+        )
+        now = utcnow().isoformat()
+        init_kryptscan_db()
+        with get_connection() as connection:
+            connection.execute(
+                """
+                INSERT INTO targets (
+                    organization_id, target, normalized_target, asset_type, ownership_domain,
+                    authorization_method, verification_note, created_by, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(organization_id, normalized_target, asset_type) DO UPDATE SET
+                    target = excluded.target,
+                    verification_note = excluded.verification_note
+                """,
+                (
+                    user["organization_id"],
+                    target,
+                    normalized_target,
+                    asset_type,
+                    user["email_domain"],
+                    "free-preview-public-target",
+                    "Free vulnerability preview performs limited, non-invasive public checks.",
+                    user["id"],
+                    now,
+                ),
+            )
+            target_row = connection.execute(
+                """
+                SELECT * FROM targets
+                WHERE organization_id = ? AND normalized_target = ? AND asset_type = ?
+                """,
+                (user["organization_id"], normalized_target, asset_type),
+            ).fetchone()
+            cursor = connection.execute(
+                """
+                INSERT INTO scans (
+                    organization_id, target_id, requested_by, engagement_id, scanner_backend,
+                    assessment_mode, scan_tier, status, report_json, metrics_json,
+                    scan_profile_json, created_at, started_at, refreshed_at, completed_at
+                )
+                VALUES (?, ?, ?, NULL, 'free_preview', 'vulnerability_assessment', 'free_preview',
+                        'completed', ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user["organization_id"],
+                    target_row["id"],
+                    user["id"],
+                    report.model_dump_json(),
+                    json.dumps({"risk_score": report.risk_score}),
+                    json.dumps(scan_protocols),
+                    now,
+                    now,
+                    now,
+                    now,
+                ),
+            )
+            scan_id = cursor.lastrowid
+            connection.execute(
+                """
+                INSERT INTO audit_events (organization_id, actor_id, action, details_json, created_at)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    user["organization_id"],
+                    user["id"],
+                    "scan.completed",
+                    json.dumps({"scan_id": scan_id, "backend": "free_preview", "tier": "free_preview"}),
+                    now,
+                ),
+            )
+
+        severity = report.severity_counts.model_dump()
+        scan = {
+            "id": scan_id,
+            "target": normalized_target,
+            "asset_type": asset_type,
+            "assessment_mode": "vulnerability_assessment",
+            "scan_tier": "free_preview",
+            "engagement_id": None,
+            "manual_finding_count": 0,
+            "scanner_backend": "free_preview",
+            "status": "completed",
+            "created_at": now,
+            "completed_at": now,
+            "error_message": None,
+            "risk_score": report.risk_score,
+            "severity_counts": severity,
+            "report_pdf_available": False,
+            "report_email_sent_at": None,
+            "report_email_error": None,
+        }
+        dashboard = {
+            "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
+            "organization": {"id": user["organization_id"], "name": user["organization_name"], "domain": user["email_domain"]},
+            "entitlement": None,
+            "stats": {
+                "authorized_assets": 1,
+                "total_scans": 1,
+                "active_scans": 0,
+                "latest_risk_score": report.risk_score,
+                "latest_severity_counts": severity,
+            },
+            "toolchain": [],
+            "profiles": [],
+            "engagements": [],
+            "members": [],
+            "payments": [],
+            "manual_findings": [],
+            "audit_events": [],
+            "scans": [scan],
+        }
+        return jsonify({"scan": scan, "report": report.model_dump(mode="json"), "dashboard": dashboard})
+    except Exception as exc:
+        app.logger.exception("KryptScan free scan fallback failed")
+        return jsonify({"detail": str(exc) or "Free scan could not be completed."}), 500
 
 @app.route("/kryptscan/verify-code", methods=["POST"])
 def kryptscan_verify_code_fallback():

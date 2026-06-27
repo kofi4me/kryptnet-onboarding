@@ -369,11 +369,16 @@ async function handleCreateScan(event) {
   }
 
   setStatus("dashboard-status", `Starting ${formatMode(assessment_mode)} for ${target}...`, "neutral");
-  const response = await fetch(apiPath("/api/scans"), {
+  if (assessment_mode === "vulnerability_assessment" && scan_tier === "free_preview") {
+    await runFreeScanFallback(body);
+    return;
+  }
+
+  const response = await fetchWithTimeout(apiPath("/api/scans"), {
     method: "POST",
     headers: jsonHeaders(),
     body: JSON.stringify(body),
-  });
+  }, 30000);
   const payload = await response.json();
 
   if (!response.ok) {
@@ -414,6 +419,52 @@ async function handleCreateScan(event) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
+
+async function runFreeScanFallback(body) {
+  let response;
+  try {
+    response = await fetchWithTimeout("/kryptscan/free-scan", {
+      method: "POST",
+      headers: jsonHeaders(),
+      body: JSON.stringify(body),
+    }, 30000);
+  } catch (error) {
+    setStatus(
+      "dashboard-status",
+      "Free scan did not receive a response from the server. Please wait a moment and try again.",
+      "error"
+    );
+    return;
+  }
+
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setStatus("dashboard-status", payload.detail || "Free scan could not be completed.", "error");
+    return;
+  }
+
+  const scan = payload.scan;
+  const report = payload.report;
+  state.dashboard = payload.dashboard;
+  state.activeScanId = scan.id;
+  state.activeReport = report;
+  renderDashboard(payload.dashboard);
+  renderReport(report);
+  showDashboardPage();
+  document.getElementById("scan-form").reset();
+  selectAssessmentMode("vulnerability_assessment");
+  selectScanTier("free_preview", { silent: true });
+  setStatus("dashboard-status", `Scan completed successfully for ${scan.target}. Basic scan report is ready below.`, "success");
+}
 async function handleLogout() {
   await fetch(apiPath("/api/auth/logout"), { method: "POST", headers: csrfHeaders() });
   if (state.refreshTimer) {
