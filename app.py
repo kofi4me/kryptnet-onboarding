@@ -154,7 +154,6 @@ def kryptscan_free_scan_fallback():
         from kryptscan.app.emailer import get_email_sender
         from kryptscan.app.services.scanners.free_preview import FreePreviewScannerProvider
         from kryptscan.app.services.ownership import infer_asset_type, normalize_target
-        from kryptscan.app.main import _require_target_network_policy
 
         settings = get_kryptscan_settings()
         token = request.cookies.get(settings.session_cookie_name)
@@ -178,7 +177,19 @@ def kryptscan_free_scan_fallback():
             return jsonify({"detail": "Unsupported target type."}), 400
 
         normalized_target, target_kind = normalize_target(target, asset_type)
-        _require_target_network_policy(normalized_target, target_kind)
+        if not settings.allow_private_network_targets and target_kind in {"ip", "cidr"}:
+            network = ipaddress.ip_network(normalized_target, strict=False)
+            blocked_network = any(
+                address.is_private
+                or address.is_loopback
+                or address.is_link_local
+                or address.is_multicast
+                or address.is_reserved
+                or address.is_unspecified
+                for address in (network.network_address, network.broadcast_address)
+            )
+            if blocked_network:
+                return jsonify({"detail": "Private, loopback, reserved, or link-local targets are not allowed."}), 400
         scan_protocols = [
             "Free vulnerability preview: limited, non-invasive checks only",
             "Summary report displayed in the web interface",
