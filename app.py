@@ -1,4 +1,4 @@
-﻿from datetime import datetime, timedelta
+from datetime import datetime, timedelta
 from email.message import EmailMessage
 from io import BytesIO
 import json
@@ -158,6 +158,8 @@ def kryptscan_free_scan_fallback():
 
         settings = get_kryptscan_settings()
         token = request.cookies.get(settings.session_cookie_name)
+        if not token:
+            return jsonify({"detail": "Email verification is required before running a free scan."}), 401
         payload = verify_session_token(settings, token)
         if payload is None:
             return jsonify({"detail": "Email verification is required before running a free scan."}), 401
