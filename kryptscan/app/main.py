@@ -1740,8 +1740,43 @@ def create_scan(
         _audit(connection, user, "scan.created", {"scan_id": scan_id, "target": authorization["normalized_target"], "mode": assessment_mode, "tier": scan_tier})
 
     if scan_tier == "free_preview":
-        _run_scan_job(scan_id, int(user["id"]))
+        provider = get_scanner_provider(settings, "free_preview")
+        completed = provider.schedule(authorization["normalized_target"], asset_type)
+        if completed.report is None:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Free vulnerability preview could not generate a report.",
+            )
+        report = completed.report.model_copy(
+            update={
+                "scan_protocols": scan_protocols,
+                "scope_summary": f"Free vulnerability preview for {authorization['normalized_target']}.",
+            }
+        )
+        completed_at = utcnow().isoformat()
         with get_connection() as connection:
+            connection.execute(
+                """
+                UPDATE scans
+                SET status = 'completed',
+                    scanner_backend = ?,
+                    report_json = ?,
+                    metrics_json = ?,
+                    refreshed_at = ?,
+                    completed_at = ?
+                WHERE id = ? AND organization_id = ?
+                """,
+                (
+                    completed.backend,
+                    report.model_dump_json(),
+                    json.dumps({"risk_score": report.risk_score}),
+                    completed_at,
+                    completed_at,
+                    scan_id,
+                    user["organization_id"],
+                ),
+            )
+            _audit(connection, user, "scan.completed", {"scan_id": scan_id, "backend": completed.backend, "tier": scan_tier})
             completed_scan = _load_scan(connection, scan_id, user["organization_id"])
         return _summary_from_row(completed_scan or scan)
 
