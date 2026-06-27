@@ -1739,6 +1739,12 @@ def create_scan(
         scan = _load_scan(connection, scan_id, user["organization_id"])
         _audit(connection, user, "scan.created", {"scan_id": scan_id, "target": authorization["normalized_target"], "mode": assessment_mode, "tier": scan_tier})
 
+    if scan_tier == "free_preview":
+        _run_scan_job(scan_id, int(user["id"]))
+        with get_connection() as connection:
+            completed_scan = _load_scan(connection, scan_id, user["organization_id"])
+        return _summary_from_row(completed_scan or scan)
+
     background_tasks.add_task(_run_scan_job, scan_id, int(user["id"]))
     return _summary_from_row(scan)
 
@@ -1925,4 +1931,3 @@ def download_report_pdf(scan_id: int, user: Row = Depends(get_current_user)) -> 
         filename=_report_path_for_scan(scan_id, scan["normalized_target"]).name,
         headers={"Cache-Control": "private, no-store, max-age=0"},
     )
-

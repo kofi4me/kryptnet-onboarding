@@ -398,19 +398,19 @@ async function handleCreateScan(event) {
     deliveryNote = " The scan is running in the background.";
   }
 
-  setStatus(
-    "dashboard-status",
-    `${formatMode(payload.assessment_mode)} created for ${payload.target}. Current status: ${payload.status}.${deliveryNote}`,
-    "success"
-  );
+  const successMessage = `${formatMode(payload.assessment_mode)} created for ${payload.target}. Current status: ${payload.status}.${deliveryNote}`;
+  setStatus("dashboard-status", successMessage, "success");
   document.getElementById("scan-form").reset();
   selectAssessmentMode(state.assessmentMode);
   if (state.assessmentMode === "vulnerability_assessment") {
     selectScanTier(state.scanTier, { silent: true });
   }
-  await loadDashboard(true);
+  await loadDashboard(false);
   if (payload.status === "completed") {
     await loadReport(payload.id);
+    setStatus("dashboard-status", `Scan completed successfully for ${payload.target}. Basic scan report is ready below.`, "success");
+  } else {
+    setStatus("dashboard-status", successMessage, "success");
   }
 }
 
@@ -607,6 +607,7 @@ function renderDashboard(payload) {
       `
     )
     .join("");
+  renderScanProgress(payload.scans || []);
 
   const scanList = document.getElementById("scan-list");
   if (!payload.scans.length) {
@@ -651,6 +652,61 @@ function renderDashboard(payload) {
         </article>
       `
     )
+    .join("");
+}
+
+function scanProgressPercent(status) {
+  if (status === "completed") return 100;
+  if (status === "running") return 65;
+  if (status === "queued") return 20;
+  if (status === "failed") return 100;
+  return 10;
+}
+
+function scanProgressLabel(scan) {
+  if (scan.status === "completed") return "Scan complete successfully";
+  if (scan.status === "running") return "Scanner is collecting evidence";
+  if (scan.status === "queued") return "Scan accepted and preparing";
+  if (scan.status === "failed") return "Scan failed";
+  return "Scan status pending";
+}
+
+function renderScanProgress(scans) {
+  const element = document.getElementById("scan-progress-grid");
+  if (!element) return;
+  const visibleScans = scans.slice(0, 3);
+  if (!visibleScans.length) {
+    element.innerHTML = "";
+    return;
+  }
+  element.innerHTML = visibleScans
+    .map((scan) => {
+      const percent = scanProgressPercent(scan.status);
+      const severity = scan.severity_counts || {};
+      return `
+        <article class="progress-card">
+          <header>
+            <div>
+              <span class="progress-eyebrow">${escapeHtml(formatTier(scan.scan_tier))}</span>
+              <strong>${escapeHtml(scan.target)}</strong>
+            </div>
+            <span class="pill ${scan.status}">${scan.status}</span>
+          </header>
+          <div class="progress-meter" aria-label="${percent}% complete">
+            <span style="width: ${percent}%"></span>
+          </div>
+          <div class="progress-meta">
+            <span>${percent}% complete</span>
+            <span>${escapeHtml(scanProgressLabel(scan))}</span>
+          </div>
+          <div class="progress-report-row">
+            <span>Risk ${scan.risk_score ?? "Pending"}</span>
+            <span>Critical ${severity.critical ?? 0}</span>
+            <span>High ${severity.high ?? 0}</span>
+          </div>
+        </article>
+      `;
+    })
     .join("");
 }
 
