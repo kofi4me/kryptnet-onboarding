@@ -201,9 +201,9 @@ function updateScanSubmitText() {
   const submit = document.getElementById("scan-submit-button");
   if (!submit) return;
   if (state.assessmentMode === "ethical_pentesting") {
-    submit.textContent = "Run Paid Ethical Pen-Testing";
+    submit.textContent = "Run Ethical Pen-Testing Test";
   } else if (state.scanTier === "full_scan") {
-    submit.textContent = "Run Full Vulnerability Scan";
+    submit.textContent = "Run Full Vulnerability Test";
   } else {
     submit.textContent = "Run Free Vulnerability Scan";
   }
@@ -222,15 +222,15 @@ function updateServiceWorkspace() {
   const requiresPayment = selectedServiceRequiresPayment();
 
   if (paymentPanel) {
-    paymentPanel.classList.toggle("hidden", !requiresPayment);
+    paymentPanel.classList.toggle("hidden", true);
   }
   if (scanForm) {
-    scanForm.classList.toggle("hidden", requiresPayment);
+    scanForm.classList.remove("hidden");
   }
   if (requiresPayment) {
     setStatus(
       "dashboard-status",
-      "This service requires payment. The KryptNet payment link will be connected here when provided.",
+      "Test mode is active: payment is temporarily skipped until the KryptNet bank payment API is connected.",
       "neutral"
     );
   }
@@ -374,10 +374,8 @@ async function handleCreateScan(event) {
   }
 
   setStatus("dashboard-status", `Starting ${formatMode(assessment_mode)} for ${target}...`, "neutral");
-  if (assessment_mode === "vulnerability_assessment" && scan_tier === "free_preview") {
-    await runFreeScanFallback(body);
-    return;
-  }
+  await runTestScanFallback(body);
+  return;
 
   const response = await fetchWithTimeout(apiPath("/api/scans"), {
     method: "POST",
@@ -434,7 +432,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   }
 }
 
-async function runFreeScanFallback(body) {
+async function runTestScanFallback(body) {
   let response;
   try {
     response = await fetchWithTimeout("/kryptscan/free-scan", {
@@ -445,7 +443,7 @@ async function runFreeScanFallback(body) {
   } catch (error) {
     setStatus(
       "dashboard-status",
-      "Free scan did not receive a response from the server. Please wait a moment and try again.",
+      "The scan did not receive a response from the server. Please wait a moment and try again.",
       "error"
     );
     return;
@@ -453,7 +451,7 @@ async function runFreeScanFallback(body) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    setStatus("dashboard-status", payload.detail || "Free scan could not be completed.", "error");
+    setStatus("dashboard-status", payload.detail || "Scan could not be completed.", "error");
     return;
   }
 
@@ -466,9 +464,9 @@ async function runFreeScanFallback(body) {
   renderReport(report);
   showDashboardPage();
   document.getElementById("scan-form").reset();
-  selectAssessmentMode("vulnerability_assessment");
-  selectScanTier("free_preview", { silent: true });
-  setStatus("dashboard-status", `Scan completed successfully for ${scan.target}. Basic scan report is ready below.`, "success");
+  selectAssessmentMode(scan.assessment_mode);
+  selectScanTier(scan.scan_tier, { silent: true });
+  setStatus("dashboard-status", `${formatMode(scan.assessment_mode)} completed successfully for ${scan.target}. Test report is ready below.`, "success");
 }
 async function handleLogout() {
   await fetch(apiPath("/api/auth/logout"), { method: "POST", headers: csrfHeaders() });
@@ -865,15 +863,13 @@ function renderCommercialReadiness(payload) {
   element.innerHTML = `
     <article class="readiness-card">
       <strong>Payment</strong>
-      <span class="pill ${!paidRequired || paymentActive ? "completed" : "warn"}">${!paidRequired ? "free preview" : paymentActive ? "paid" : "required"}</span>
+      <span class="pill completed">${!paidRequired ? "free preview" : "test mode"}</span>
       <p>${
         !paidRequired
           ? "Free vulnerability scan runs partial checks and displays a summary in the web interface. PDF delivery is available with the paid full scan."
-          : paymentActive
-            ? `Paid package ${escapeHtml(payload.entitlement.plan)} access is valid until ${new Date(payload.entitlement.expires_at).toLocaleDateString()}.`
-            : "Complete a one-time payment before launching full vulnerability scans or ethical pen-testing."
+          : "Test mode is active for Full Vulnerability Assessment and Ethical Pen-Testing. Payment will be re-enabled after the bank payment API is connected."
       }</p>
-      ${!paidRequired || paymentActive ? "" : `<p>Choose one service package. Debit and credit card details stay inside KryptNet checkout.</p>`}
+      ${!paidRequired ? "" : `<p>No card or bank payment is required during this testing phase.</p>`}
     </article>
   `;
 }

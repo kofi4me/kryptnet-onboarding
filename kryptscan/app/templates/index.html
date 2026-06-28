@@ -134,7 +134,7 @@
           </p>
           <p class="welcome-copy">
             After verification, your account opens and you can select Vulnerability Assessment or
-            Ethical Pen-Testing, make a one-time payment, run approved work, and download PDF reports.
+            Ethical Pen-Testing, run approved test work, and download PDF reports after payment integration is enabled.
           </p>
         </article>
 
@@ -251,11 +251,11 @@
             </button>
             <button type="button" class="mode-card" data-choice-mode="ethical_pentesting" data-choice-tier="full_scan">
               <span>Pen-Testing</span>
-              <small>Paid ethical pen-testing for approved targets.</small>
+              <small>Test-mode ethical pen-testing for approved targets. Payment is temporarily skipped.</small>
             </button>
             <button type="button" class="mode-card" data-choice-mode="vulnerability_assessment" data-choice-tier="full_scan">
               <span>Vulnerability Assessment</span>
-              <small>Paid deeper scan with PDF report delivery.</small>
+              <small>Test-mode deeper scan. Payment is temporarily skipped.</small>
             </button>
           </div>
         </article>
@@ -349,8 +349,8 @@
           <section id="payment-panel" class="engagement-form">
             <div class="section-head">
               <div>
-                <h3>One-Time Payment</h3>
-                <p class="inline-copy">Required for Full Vulnerability Scan and Ethical Pen-Testing. Free vulnerability scans display a partial web summary only.</p>
+                <h3>One-Time Payment - Disabled During Testing</h3>
+                <p class="inline-copy">Temporarily skipped while KryptNet tests Full Vulnerability Assessment and Ethical Pen-Testing. Bank payment API will be connected later.</p>
               </div>
             </div>
             <div class="plan-grid">
@@ -515,6 +515,6 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260627-personal-email-auth"></script>
+    <script src="./static/app.js?v=20260627-test-mode-paid-services"></script>
   </body>
 </html>

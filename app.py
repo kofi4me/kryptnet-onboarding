@@ -153,7 +153,8 @@ def kryptscan_free_scan_fallback():
         from kryptscan.app.services.auth import AuthService
         from kryptscan.app.emailer import get_email_sender
         from kryptscan.app.services.scanners.free_preview import FreePreviewScannerProvider
-        from kryptscan.app.services.ownership import infer_asset_type, normalize_target
+        from kryptscan.app.services.scanners.mock import MockScannerProvider
+        from kryptscan.app.services.ownership import build_scan_protocols, infer_asset_type, normalize_assessment_mode, normalize_target
 
         settings = get_kryptscan_settings()
         token = request.cookies.get(settings.session_cookie_name)
@@ -174,6 +175,16 @@ def kryptscan_free_scan_fallback():
         if len(target) < 3:
             return jsonify({"detail": "Enter a valid domain name or IP address."}), 400
 
+        try:
+            assessment_mode = normalize_assessment_mode(body.get("assessment_mode"))
+        except ValueError as exc:
+            return jsonify({"detail": str(exc)}), 400
+        scan_tier = str(body.get("scan_tier", "full_scan")).strip().lower()
+        if scan_tier not in {"free_preview", "full_scan"}:
+            return jsonify({"detail": "Scan tier must be free_preview or full_scan."}), 400
+        if assessment_mode == "ethical_pentesting":
+            scan_tier = "full_scan"
+
         asset_type = body.get("asset_type") or infer_asset_type(target)
         if asset_type not in {"website", "network"}:
             return jsonify({"detail": "Unsupported target type."}), 400
@@ -192,16 +203,37 @@ def kryptscan_free_scan_fallback():
             )
             if blocked_network:
                 return jsonify({"detail": "Private, loopback, reserved, or link-local targets are not allowed."}), 400
-        scan_protocols = [
-            "Free vulnerability preview: limited, non-invasive checks only",
-            "Summary report displayed in the web interface",
-            "PDF delivery requires a paid full scan",
-        ]
-        completed = FreePreviewScannerProvider().schedule(normalized_target, asset_type)
+        scan_protocols = build_scan_protocols(asset_type, target_kind, assessment_mode)
+        if scan_tier == "free_preview":
+            scanner_backend = "free_preview"
+            scan_protocols.extend([
+                "Free vulnerability preview: limited, non-invasive checks only",
+                "Summary report displayed in the web interface",
+                "PDF delivery requires a paid full scan",
+            ])
+            completed = FreePreviewScannerProvider().schedule(normalized_target, asset_type)
+            scope_summary = f"Free vulnerability preview for {normalized_target}."
+        else:
+            scanner_backend = "test_mode"
+            scan_protocols.extend([
+                "TEST MODE: one-time payment temporarily skipped for tool validation",
+                "Verified email and explicit target authorization confirmation recorded",
+                "Client-ready test report generated without charging a card or bank account",
+            ])
+            if assessment_mode == "ethical_pentesting":
+                depth = str(body.get("pentest_depth", "standard")).strip().lower()
+                validation_mode = str(body.get("validation_mode", "safe_validation")).strip().lower()
+                scan_protocols.extend([
+                    f"Ethical testing depth: {depth}",
+                    f"Validation mode: {validation_mode.replace('_' , ' ')}",
+                    "Non-destructive ethical pen-testing test run",
+                ])
+            completed = MockScannerProvider().schedule(normalized_target, asset_type)
+            scope_summary = f"Test-mode {assessment_mode.replace('_' , ' ')} for {normalized_target}."
         report = completed.report.model_copy(
             update={
                 "scan_protocols": scan_protocols,
-                "scope_summary": f"Free vulnerability preview for {normalized_target}.",
+                "scope_summary": scope_summary,
             }
         )
         now = utcnow().isoformat()
@@ -224,8 +256,8 @@ def kryptscan_free_scan_fallback():
                     normalized_target,
                     asset_type,
                     user["email_domain"],
-                    "free-preview-public-target",
-                    "Free vulnerability preview performs limited, non-invasive public checks.",
+                    "verified-email-test-mode-attestation",
+                    "Verified email user confirmed ownership or client/asset-owner permission before testing.",
                     user["id"],
                     now,
                 ),
@@ -244,13 +276,16 @@ def kryptscan_free_scan_fallback():
                     assessment_mode, scan_tier, status, report_json, metrics_json,
                     scan_profile_json, created_at, started_at, refreshed_at, completed_at
                 )
-                VALUES (?, ?, ?, NULL, 'free_preview', 'vulnerability_assessment', 'free_preview',
+                VALUES (?, ?, ?, NULL, ?, ?, ?,
                         'completed', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user["organization_id"],
                     target_row["id"],
                     user["id"],
+                    scanner_backend,
+                    assessment_mode,
+                    scan_tier,
                     report.model_dump_json(),
                     json.dumps({"risk_score": report.risk_score}),
                     json.dumps(scan_protocols),
@@ -270,7 +305,7 @@ def kryptscan_free_scan_fallback():
                     user["organization_id"],
                     user["id"],
                     "scan.completed",
-                    json.dumps({"scan_id": scan_id, "backend": "free_preview", "tier": "free_preview"}),
+                    json.dumps({"scan_id": scan_id, "backend": scanner_backend, "tier": scan_tier, "test_mode_payment_bypass": scan_tier == "full_scan"}),
                     now,
                 ),
             )
@@ -280,11 +315,11 @@ def kryptscan_free_scan_fallback():
             "id": scan_id,
             "target": normalized_target,
             "asset_type": asset_type,
-            "assessment_mode": "vulnerability_assessment",
-            "scan_tier": "free_preview",
+            "assessment_mode": assessment_mode,
+            "scan_tier": scan_tier,
             "engagement_id": None,
             "manual_finding_count": 0,
-            "scanner_backend": "free_preview",
+            "scanner_backend": scanner_backend,
             "status": "completed",
             "created_at": now,
             "completed_at": now,
@@ -317,8 +352,8 @@ def kryptscan_free_scan_fallback():
         }
         return jsonify({"scan": scan, "report": report.model_dump(mode="json"), "dashboard": dashboard})
     except Exception as exc:
-        app.logger.exception("KryptScan free scan fallback failed")
-        return jsonify({"detail": str(exc) or "Free scan could not be completed."}), 500
+        app.logger.exception("KryptScan test scan fallback failed")
+        return jsonify({"detail": str(exc) or "Scan could not be completed."}), 500
 
 @app.route("/kryptscan/verify-code", methods=["POST"])
 def kryptscan_verify_code_fallback():
