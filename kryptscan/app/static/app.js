@@ -1,4 +1,4 @@
-const state = {
+﻿const state = {
   email: "",
   dashboard: null,
   activeReport: null,
@@ -429,6 +429,96 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
   }
 }
 
+function assessmentProcessSteps(body) {
+  const mode = formatMode(body.assessment_mode);
+  const base = [
+    ["Authorization", "Verified identity, safe-use acceptance, and target permission confirmation."],
+    ["Target Scope", "Normalized the submitted domain/IP and checked private-network restrictions."],
+    ["Recon Profile", "Selected safe discovery, service exposure, TLS/web, and risk correlation checks."],
+  ];
+  if (body.assessment_mode === "ethical_pentesting") {
+    base.push(["Ethical Validation", "Applied non-destructive validation using the selected depth and vulnerability focus."]);
+  } else if (body.scan_tier === "full_scan") {
+    base.push(["Full Assessment", "Ran deeper test-mode vulnerability checks and evidence correlation."]);
+  } else {
+    base.push(["Preview Checks", "Ran limited non-invasive posture checks for web summary output."]);
+  }
+  base.push(["Prioritization", "Calculated risk score, severity distribution, affected services, and remediation priority."]);
+  base.push(["Report Build", `${mode} results packaged for dashboard review and PDF email delivery.`]);
+  return base.map(([title, detail], index) => ({ title, detail, index }));
+}
+
+function renderLiveProcess(body, activeIndex = 0) {
+  const element = document.getElementById("live-process-panel");
+  if (!element) return;
+  const steps = assessmentProcessSteps(body);
+  element.classList.remove("hidden");
+  element.innerHTML = `
+    <div class="process-head">
+      <div>
+        <strong>${escapeHtml(formatMode(body.assessment_mode))} Process</strong>
+        <p>Safe testing workflow for ${escapeHtml(body.target)}.</p>
+      </div>
+      <span>${Math.min(100, Math.round(((activeIndex + 1) / steps.length) * 100))}%</span>
+    </div>
+    <div class="process-steps">
+      ${steps
+        .map(
+          (step) => `
+            <div class="process-step ${step.index < activeIndex ? "done" : step.index === activeIndex ? "active" : ""}">
+              <span>${step.index + 1}</span>
+              <div><strong>${escapeHtml(step.title)}</strong><p>${escapeHtml(step.detail)}</p></div>
+            </div>
+          `
+        )
+        .join("")}
+    </div>
+  `;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function playAssessmentProcess(body) {
+  const steps = assessmentProcessSteps(body);
+  for (let index = 0; index < steps.length; index += 1) {
+    renderLiveProcess(body, index);
+    setStatus("dashboard-status", `${steps[index].title}: ${steps[index].detail}`, "neutral");
+    await wait(520);
+  }
+}
+
+function renderReportProcess(report) {
+  const element = document.getElementById("assessment-process");
+  if (!element) return;
+  const protocols = report.scan_protocols?.length ? report.scan_protocols : report.methodology || [];
+  element.classList.remove("hidden");
+  element.innerHTML = `
+    <h4>Testing Process Completed</h4>
+    <div class="process-steps compact">
+      ${protocols.slice(0, 8).map((item, index) => `
+        <div class="process-step done">
+          <span>${index + 1}</span>
+          <div><strong>${escapeHtml(item)}</strong></div>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderReportKpis(report) {
+  const element = document.getElementById("report-kpi-grid");
+  if (!element) return;
+  const counts = report.severity_counts || {};
+  element.classList.remove("hidden");
+  element.innerHTML = `
+    <article><span>Risk Score</span><strong>${report.risk_score}</strong></article>
+    <article><span>Risk Band</span><strong>${escapeHtml(report.risk_band)}</strong></article>
+    <article><span>Findings</span><strong>${(report.findings || []).length}</strong></article>
+    <article><span>Critical/High</span><strong>${(counts.critical || 0) + (counts.high || 0)}</strong></article>
+  `;
+}
 async function runTestScanFallback(body) {
   let response;
   try {
@@ -1101,6 +1191,20 @@ function formatTier(tier) {
   return tier === "free_preview" ? "Free Scan" : "Full Scan";
 }
 
+async function emailReport(scanId) {
+  setStatus("dashboard-status", "Preparing PDF report email...", "neutral");
+  const response = await fetchWithTimeout(`/kryptscan/email-report/${scanId}`, {
+    method: "POST",
+    headers: csrfHeaders(),
+  }, 30000);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setStatus("dashboard-status", payload.detail || "Unable to email PDF report.", "error");
+    return;
+  }
+  setStatus("dashboard-status", payload.message || "PDF report sent to your verified email.", "success");
+}
+
 function downloadReport(scanId) {
   window.location.assign(apiPath(`/api/reports/${scanId}/pdf`));
 }
@@ -1117,3 +1221,5 @@ function escapeHtml(value) {
 window.refreshScan = refreshScan;
 window.loadReport = loadReport;
 window.downloadReport = downloadReport;
+window.emailReport = emailReport;
+

@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+﻿from datetime import datetime, timedelta
 from email.message import EmailMessage
 from io import BytesIO
 import json
@@ -354,6 +354,97 @@ def kryptscan_free_scan_fallback():
     except Exception as exc:
         app.logger.exception("KryptScan test scan fallback failed")
         return jsonify({"detail": str(exc) or "Scan could not be completed."}), 500
+
+
+@app.route("/kryptscan/email-report/<int:scan_id>", methods=["POST"])
+def kryptscan_email_report(scan_id):
+    try:
+        from kryptscan.app.config import get_settings as get_kryptscan_settings
+        from kryptscan.app.db import get_connection
+        from kryptscan.app.emailer import get_email_sender
+        from kryptscan.app.models import AssessmentReport
+        from kryptscan.app.security import verify_session_token, utcnow
+        from kryptscan.app.services.auth import AuthService
+        from kryptscan.app.services.pdf_report import write_pdf_report
+
+        settings = get_kryptscan_settings()
+        token = request.cookies.get(settings.session_cookie_name)
+        if not token:
+            return jsonify({"detail": "Email verification is required before sending a report."}), 401
+        payload = verify_session_token(settings, token)
+        if payload is None:
+            return jsonify({"detail": "Email verification is required before sending a report."}), 401
+
+        email_sender = get_email_sender(settings)
+        user = AuthService(settings, email_sender).get_user_by_id(int(payload["uid"]))
+        if user is None or not user["is_verified"]:
+            return jsonify({"detail": "User session is no longer valid."}), 401
+
+        with get_connection() as connection:
+            scan = connection.execute(
+                """
+                SELECT scans.*, targets.normalized_target, targets.asset_type, targets.target,
+                       targets.ownership_domain, targets.authorization_method, targets.verification_note
+                FROM scans
+                JOIN targets ON targets.id = scans.target_id
+                WHERE scans.id = ? AND scans.organization_id = ? AND scans.status = 'completed'
+                """,
+                (scan_id, user["organization_id"]),
+            ).fetchone()
+            if scan is None or not scan["report_json"]:
+                return jsonify({"detail": "Completed report was not found for this scan."}), 404
+
+            report = AssessmentReport.model_validate_json(scan["report_json"])
+            safe_target = re.sub(r"[^a-z0-9]+", "-", scan["normalized_target"].lower()).strip("-") or "target"
+            pdf_path = settings.reports_dir / f"scan-{scan_id}-{safe_target}.pdf"
+            pdf_bytes = write_pdf_report(
+                output_path=pdf_path,
+                target=scan["normalized_target"],
+                asset_type=scan["asset_type"],
+                scanner_backend=scan["scanner_backend"],
+                assessment_mode=scan["assessment_mode"],
+                recipient_email=user["email"],
+                report=report,
+                msp_details={
+                    "Verified user": user["email"],
+                    "Verified email domain": user["email_domain"],
+                    "Organization profile": user["organization_name"],
+                    "Testing mode": "KryptScan test mode" if scan["scanner_backend"] == "test_mode" else scan["scanner_backend"],
+                },
+                owner_details={
+                    "Target": scan["normalized_target"],
+                    "Asset type": scan["asset_type"],
+                    "Authorization method": scan["authorization_method"],
+                    "Authorization note": scan["verification_note"] or "Confirmed by verified user before testing.",
+                },
+            )
+            email_sender.send_assessment_report(
+                email=user["email"],
+                target=scan["normalized_target"],
+                pdf_filename=pdf_path.name,
+                pdf_bytes=pdf_bytes,
+                summary=report.executive_summary,
+            )
+            sent_at = utcnow().isoformat()
+            connection.execute(
+                """
+                UPDATE scans
+                SET report_pdf_path = ?, report_email_sent_at = ?, report_email_error = NULL
+                WHERE id = ? AND organization_id = ?
+                """,
+                (str(pdf_path), sent_at, scan_id, user["organization_id"]),
+            )
+            connection.execute(
+                """
+                INSERT INTO audit_events (organization_id, actor_id, action, details_json, created_at)
+                VALUES (?, ?, 'report.emailed', ?, ?)
+                """,
+                (user["organization_id"], user["id"], json.dumps({"scan_id": scan_id, "target": scan["normalized_target"]}), sent_at),
+            )
+        return jsonify({"message": f"PDF report sent to {user['email']}.", "scan_id": scan_id, "report_email_sent_at": sent_at})
+    except Exception as exc:
+        app.logger.exception("KryptScan report email failed")
+        return jsonify({"detail": str(exc) or "Report could not be emailed."}), 500
 
 @app.route("/kryptscan/verify-code", methods=["POST"])
 def kryptscan_verify_code_fallback():
@@ -1542,3 +1633,4 @@ mount_kryptscan_app()
 
 if __name__ == "__main__":
     app.run(debug=True)
+

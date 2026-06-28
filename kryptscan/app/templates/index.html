@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
@@ -348,6 +348,7 @@
 
           <section id="payment-panel" class="hidden" style="display: none;" aria-hidden="true"></section>
           <div id="dashboard-status" class="status-card hidden"></div>
+          <div id="live-process-panel" class="process-panel hidden"></div>
           <div id="commercial-readiness" class="commercial-readiness"></div>
           <div id="member-list" class="commercial-readiness"></div>
           <div id="payment-list" class="commercial-readiness"></div>
@@ -409,10 +410,13 @@
                 </div>
                 <div class="report-actions">
                   <span id="report-risk-band" class="risk-band">No report selected</span>
+                  <button id="report-email-button" type="button" class="ghost hidden">Email PDF Report</button>
                   <button id="report-download-button" type="button" class="ghost hidden">Download PDF</button>
                 </div>
               </div>
 
+              <div id="report-kpi-grid" class="report-kpi-grid hidden"></div>
+              <div id="assessment-process" class="assessment-process hidden"></div>
               <p id="executive-summary" class="summary-copy">
                 Launch an assessment to populate the executive summary and technical findings.
               </p>
@@ -490,6 +494,7 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260627-scan-form-all-services"></script>
+    <script src="./static/app.js?v=20260627-professional-report-email"></script>
   </body>
 </html>
+
