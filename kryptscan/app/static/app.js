@@ -173,7 +173,7 @@ function selectAssessmentMode(mode) {
     subtitle.textContent =
       mode === "ethical_pentesting"
         ? `${state.dashboard.user.email} verified for ${state.dashboard.organization.domain}. Ethical Pen-Testing is paid-only and uses the approved target and full-stack testing tools.`
-        : `${state.dashboard.user.email} verified for ${state.dashboard.organization.domain}. Choose a free preview or paid full vulnerability scan for an authorized asset.`;
+        : `${state.dashboard.user.email} verified for ${state.dashboard.organization.domain}. Choose a free preview or full vulnerability assessment test for an authorized asset.`;
   }
   if (state.dashboard) {
     renderCommercialReadiness(state.dashboard);
@@ -210,10 +210,7 @@ function updateScanSubmitText() {
 }
 
 function selectedServiceRequiresPayment() {
-  return (
-    state.assessmentMode === "ethical_pentesting" ||
-    (state.assessmentMode === "vulnerability_assessment" && state.scanTier === "full_scan")
-  );
+  return false;
 }
 
 function updateServiceWorkspace() {
@@ -862,7 +859,7 @@ function renderCommercialReadiness(payload) {
     state.assessmentMode === "ethical_pentesting" || state.scanTier === "full_scan";
   element.innerHTML = `
     <article class="readiness-card">
-      <strong>Payment</strong>
+      <strong>Test Access</strong>
       <span class="pill completed">${!paidRequired ? "free preview" : "test mode"}</span>
       <p>${
         !paidRequired

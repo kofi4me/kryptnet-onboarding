@@ -346,32 +346,7 @@
             <button id="scan-submit-button" type="submit">Run Free Vulnerability Scan</button>
           </form>
 
-          <section id="payment-panel" class="engagement-form">
-            <div class="section-head">
-              <div>
-                <h3>One-Time Payment - Disabled During Testing</h3>
-                <p class="inline-copy">Temporarily skipped while KryptNet tests Full Vulnerability Assessment and Ethical Pen-Testing. Bank payment API will be connected later.</p>
-              </div>
-            </div>
-            <div class="plan-grid">
-              <button type="button" class="plan-card" data-plan="starter">
-                <span>Starter</span>
-                <strong>$99</strong>
-                <small>One-time vulnerability assessment package.</small>
-              </button>
-              <button type="button" class="plan-card featured" data-plan="professional">
-                <span>Professional</span>
-                <strong>$299</strong>
-                <small>One-time package for assessment and ethical testing.</small>
-              </button>
-              <button type="button" class="plan-card" data-plan="msp_scale">
-                <span>MSP Scale</span>
-                <strong>$799</strong>
-                <small>One-time package for larger MSP delivery teams.</small>
-              </button>
-            </div>
-          </section>
-
+          <section id="payment-panel" class="hidden" style="display: none;" aria-hidden="true"></section>
           <div id="dashboard-status" class="status-card hidden"></div>
           <div id="commercial-readiness" class="commercial-readiness"></div>
           <div id="member-list" class="commercial-readiness"></div>
@@ -515,6 +490,6 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260627-test-mode-paid-services"></script>
+    <script src="./static/app.js?v=20260627-scan-form-all-services"></script>
   </body>
 </html>
