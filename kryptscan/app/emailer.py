@@ -74,6 +74,7 @@ class SmtpEmailSender(BaseEmailSender):
             "Use this code to verify your KryptScan account for ethical vulnerability assessment access.\n\n"
             f"Verification code: {code}\n"
             f"Verified email domain: {domain}\n\n"
+            "This code expires in 10 minutes. If you request another code, only the newest code will work.\n\n"
             "If you did not request this code, ignore this message."
         )
 

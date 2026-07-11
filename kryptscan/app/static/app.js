@@ -10,6 +10,9 @@
 };
 
 const API_BASE = window.location.pathname.startsWith("/kryptscan") ? "/kryptscan-app" : "";
+const VERIFICATION_EXPIRY_MINUTES = 10;
+const FREE_SCAN_MIN_MS = 12000;
+const PAID_SCAN_MIN_MS = 10 * 60 * 1000;
 
 function apiPath(path) {
   return `${API_BASE}${path}`;
@@ -96,8 +99,8 @@ function handleVerificationRedirect() {
   if (sent) {
     const message =
       delivery === "console"
-        ? `Verification code was generated for ${email || "your email"}, but email delivery is in console mode. Check Render logs or set EMAIL_DELIVERY=smtp.`
-        : `Verification code sent to ${email || "your email"}. Check your inbox and spam folder.`;
+        ? `Verification code was generated for ${email || "your email"}, but email delivery is in console mode. Use the newest code within ${VERIFICATION_EXPIRY_MINUTES} minutes.`
+        : `Verification code sent to ${email || "your email"}. Use the newest code within ${VERIFICATION_EXPIRY_MINUTES} minutes and check your inbox or spam folder.`;
     setStatus("verify-status", message, delivery === "console" ? "error" : "success");
     showVerificationPage();
   }
@@ -284,8 +287,8 @@ async function handleRequestCode(event) {
 
     const isConsoleDelivery = payload.delivery === "console";
     const message = isConsoleDelivery
-      ? `Verification code generated for ${payload.email}. Local testing mode is active, so read the code from the server terminal to continue.`
-      : `Verification code sent to ${payload.email}. Check your organizational inbox and spam folder.`;
+      ? `Verification code generated for ${payload.email}. Use the newest code within ${VERIFICATION_EXPIRY_MINUTES} minutes. Local testing mode is active, so read the code from the server terminal to continue.`
+      : `Verification code sent to ${payload.email}. Use the newest code within ${VERIFICATION_EXPIRY_MINUTES} minutes. Check your inbox and spam folder.`;
     setStatus("verify-status", message, "success");
     showVerificationPage();
   } catch (error) {
@@ -371,6 +374,7 @@ async function handleCreateScan(event) {
   }
 
   setStatus("dashboard-status", `Starting ${formatMode(assessment_mode)} for ${target}...`, "neutral");
+  await playAssessmentProcess(body);
   await runTestScanFallback(body);
   return;
 
@@ -432,34 +436,67 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 30000) {
 function assessmentProcessSteps(body) {
   const mode = formatMode(body.assessment_mode);
   const base = [
-    ["Authorization", "Verified identity, safe-use acceptance, and target permission confirmation."],
-    ["Target Scope", "Normalized the submitted domain/IP and checked private-network restrictions."],
-    ["Recon Profile", "Selected safe discovery, service exposure, TLS/web, and risk correlation checks."],
+    ["Authorization", "Verified identity, safe-use acceptance, and target permission confirmation.", "Identity, account, and permission checks are recorded before any target testing begins."],
+    ["Target Scope", "Normalized the submitted domain/IP and checked private-network restrictions.", "The platform validates the target format, target type, and scope boundaries."],
+    ["Recon Profile", "Selected safe discovery, service exposure, TLS/web, and risk correlation checks.", "Reconnaissance profiles include DNS, web, network, TLS, headers, and exposure mapping."],
   ];
   if (body.assessment_mode === "ethical_pentesting") {
-    base.push(["Ethical Validation", "Applied non-destructive validation using the selected depth and vulnerability focus."]);
+    base.push(
+      ["Reconnaissance", "Enumerating approved attack surface with Amass/Subfinder-style discovery, DNS review, and service fingerprinting.", "The workflow builds a controlled map of reachable assets before validation."],
+      ["Network Validation", "Running Nmap-style service, version, and safe script checks across discovered exposure.", "Open services are reviewed for weak configuration, legacy protocols, and risky exposure."],
+      ["Web/API Testing", "Applying OWASP ZAP/Nikto/Nuclei-style non-destructive checks for web, API, and known vulnerability patterns.", "The process correlates observed behavior with common OWASP and CVE risk categories."],
+      ["TLS and Crypto", "Testing certificate health, protocol support, cipher posture, and security headers.", "TLS and edge hardening are reviewed for weaknesses attackers commonly use during initial access."],
+      ["Cloud and Identity", "Reviewing cloud, identity, secrets, and configuration risk indicators when visible in scope.", "Cloud and identity observations are documented as review items requiring customer-provided access for confirmation."],
+      ["Ethical Validation", "Applied non-destructive validation using the selected depth and vulnerability focus.", "Validation focuses on proving exposure safely without exploitation, persistence, or data access."]
+    );
   } else if (body.scan_tier === "full_scan") {
-    base.push(["Full Assessment", "Ran deeper test-mode vulnerability checks and evidence correlation."]);
+    base.push(
+      ["Network Checks", "Running Nmap-style service discovery, port exposure review, and version risk checks.", "The assessment identifies exposed services and correlates them with known-risk patterns."],
+      ["Web Checks", "Running OWASP ZAP/Nikto/Nuclei-style web, headers, TLS, and application surface checks.", "The workflow reviews common web weaknesses, misconfigurations, and published vulnerability indicators."],
+      ["Cloud/Config Checks", "Reviewing cloud, container, IaC, and secrets indicators where visible from the approved target.", "Configuration and exposure indicators are normalized for remediation planning."],
+      ["Full Assessment", "Ran deeper test-mode vulnerability checks and evidence correlation.", "Findings are deduplicated, scored, and mapped to remediation actions."]
+    );
   } else {
-    base.push(["Preview Checks", "Ran limited non-invasive posture checks for web summary output."]);
+    base.push(["Preview Checks", "Ran limited non-invasive posture checks for web summary output.", "The free preview produces a partial summary only; full reports require a full assessment."]);
   }
-  base.push(["Prioritization", "Calculated risk score, severity distribution, affected services, and remediation priority."]);
-  base.push(["Report Build", `${mode} results packaged for dashboard review and PDF email delivery.`]);
-  return base.map(([title, detail], index) => ({ title, detail, index }));
+  base.push(["Prioritization", "Calculated risk score, severity distribution, affected services, and remediation priority.", "The report orders issues by business risk, exploitability indicators, and remediation urgency."]);
+  base.push(["Report Build", `${mode} results packaged for dashboard review and PDF email delivery.`, "The dashboard, charts, technical findings, and PDF delivery controls are prepared for the verified user."]);
+  return base.map(([title, detail, evidence], index) => ({ title, detail, evidence, index }));
 }
 
-function renderLiveProcess(body, activeIndex = 0) {
+function processDurationMs(body) {
+  return body.scan_tier === "free_preview" && body.assessment_mode !== "ethical_pentesting"
+    ? FREE_SCAN_MIN_MS
+    : PAID_SCAN_MIN_MS;
+}
+
+function formatDuration(ms) {
+  const totalSeconds = Math.max(0, Math.ceil(ms / 1000));
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return minutes ? `${minutes}m ${String(seconds).padStart(2, "0")}s` : `${seconds}s`;
+}
+
+function renderLiveProcess(body, activeIndex = 0, progress = 0, remainingMs = processDurationMs(body), elapsedMs = 0) {
   const element = document.getElementById("live-process-panel");
   if (!element) return;
   const steps = assessmentProcessSteps(body);
+  const percent = Math.min(100, Math.max(1, Math.round(progress)));
   element.classList.remove("hidden");
   element.innerHTML = `
     <div class="process-head">
       <div>
         <strong>${escapeHtml(formatMode(body.assessment_mode))} Process</strong>
-        <p>Safe testing workflow for ${escapeHtml(body.target)}.</p>
+        <p>Safe staged testing workflow for ${escapeHtml(body.target)}.</p>
       </div>
-      <span>${Math.min(100, Math.round(((activeIndex + 1) / steps.length) * 100))}%</span>
+      <span>${percent}%</span>
+    </div>
+    <div class="process-meter" aria-label="Assessment progress">
+      <div style="width: ${percent}%"></div>
+    </div>
+    <div class="process-timing">
+      <span>Elapsed ${formatDuration(elapsedMs)}</span>
+      <span>Estimated remaining ${formatDuration(remainingMs)}</span>
     </div>
     <div class="process-steps">
       ${steps
@@ -467,7 +504,7 @@ function renderLiveProcess(body, activeIndex = 0) {
           (step) => `
             <div class="process-step ${step.index < activeIndex ? "done" : step.index === activeIndex ? "active" : ""}">
               <span>${step.index + 1}</span>
-              <div><strong>${escapeHtml(step.title)}</strong><p>${escapeHtml(step.detail)}</p></div>
+              <div><strong>${escapeHtml(step.title)}</strong><p>${escapeHtml(step.detail)}</p><small>${escapeHtml(step.evidence || "")}</small></div>
             </div>
           `
         )
@@ -482,11 +519,21 @@ function wait(ms) {
 
 async function playAssessmentProcess(body) {
   const steps = assessmentProcessSteps(body);
+  const totalMs = processDurationMs(body);
+  const stepMs = Math.max(900, Math.floor(totalMs / steps.length));
+  const startedAt = Date.now();
   for (let index = 0; index < steps.length; index += 1) {
-    renderLiveProcess(body, index);
-    setStatus("dashboard-status", `${steps[index].title}: ${steps[index].detail}`, "neutral");
-    await wait(520);
+    const stepStartedAt = Date.now();
+    while (Date.now() - stepStartedAt < stepMs) {
+      const elapsedMs = Date.now() - startedAt;
+      const progress = Math.min(99, (elapsedMs / totalMs) * 100);
+      const activeIndex = Math.min(index, steps.length - 1);
+      renderLiveProcess(body, activeIndex, progress, totalMs - elapsedMs, elapsedMs);
+      setStatus("dashboard-status", `${steps[activeIndex].title}: ${steps[activeIndex].detail}`, "neutral");
+      await wait(body.scan_tier === "free_preview" ? 500 : 5000);
+    }
   }
+  renderLiveProcess(body, steps.length - 1, 100, 0, Date.now() - startedAt);
 }
 
 function renderReportProcess(report) {
@@ -517,6 +564,34 @@ function renderReportKpis(report) {
     <article><span>Risk Band</span><strong>${escapeHtml(report.risk_band)}</strong></article>
     <article><span>Findings</span><strong>${(report.findings || []).length}</strong></article>
     <article><span>Critical/High</span><strong>${(counts.critical || 0) + (counts.high || 0)}</strong></article>
+    <article><span>Services</span><strong>${(report.top_services || []).length}</strong></article>
+    <article><span>Actions</span><strong>${(report.remediation_plan || []).length}</strong></article>
+  `;
+}
+
+function renderActionGuidance(report) {
+  const element = document.getElementById("report-action-guidance");
+  if (!element) return;
+  const counts = report.severity_counts || {};
+  const criticalHigh = (counts.critical || 0) + (counts.high || 0);
+  const firstFinding = report.findings?.[0];
+  element.classList.remove("hidden");
+  element.innerHTML = `
+    <article>
+      <span>Immediate 0-24 Hours</span>
+      <strong>${criticalHigh ? "Contain critical exposure" : "Validate exposure"}</strong>
+      <p>${criticalHigh ? "Restrict public access, apply emergency patches, require MFA on management paths, and assign owners for every critical/high item." : "Review the visible exposure, confirm asset ownership, and approve deeper authenticated testing where needed."}</p>
+    </article>
+    <article>
+      <span>Next 7 Days</span>
+      <strong>Remediate and retest</strong>
+      <p>Patch vulnerable services, harden TLS and web controls, remove unnecessary banners, and rerun the same assessment to confirm risk reduction.</p>
+    </article>
+    <article>
+      <span>30-Day Program</span>
+      <strong>Reduce repeat findings</strong>
+      <p>${firstFinding ? `Start with ${escapeHtml(firstFinding.category)} controls, then formalize continuous scanning, change review, and evidence collection.` : "Create a recurring security validation cadence with documented authorization and remediation tracking."}</p>
+    </article>
   `;
 }
 async function runTestScanFallback(body) {
@@ -1023,7 +1098,17 @@ function renderReport(report) {
   document
     .getElementById("report-download-button")
     .classList.toggle("hidden", !activeScan?.report_pdf_available);
+  const emailButton = document.getElementById("report-email-button");
+  if (emailButton) {
+    emailButton.classList.remove("hidden");
+    emailButton.onclick = () => {
+      if (state.activeScanId) emailReport(state.activeScanId);
+    };
+  }
   document.getElementById("executive-summary").textContent = report.executive_summary;
+  renderReportKpis(report);
+  renderActionGuidance(report);
+  renderReportProcess(report);
 
   renderBars("severity-chart", [
     { label: "Critical", value: report.severity_counts.critical, color: "#d94b37" },
@@ -1090,6 +1175,7 @@ function renderReport(report) {
             <span>${escapeHtml(finding.cve || "No CVE supplied")}</span>
           </div>
           <p>${escapeHtml(finding.description)}</p>
+          <p><strong>Evidence:</strong> ${escapeHtml(finding.evidence || "Evidence summary unavailable.")}</p>
           <p><strong>Remediation:</strong> ${escapeHtml(finding.remediation)}</p>
         </article>
       `

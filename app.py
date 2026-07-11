@@ -219,6 +219,13 @@ def kryptscan_free_scan_fallback():
                 "TEST MODE: one-time payment temporarily skipped for tool validation",
                 "Verified email and explicit target authorization confirmation recorded",
                 "Client-ready test report generated without charging a card or bank account",
+                "Nmap-style network service discovery and version-risk correlation",
+                "OWASP ZAP-style baseline web and API security review",
+                "Nikto/Nuclei-style known vulnerability and misconfiguration checks",
+                "SSLyze/testssl-style TLS, certificate, and cipher posture review",
+                "Amass/Subfinder-style authorized DNS and attack-surface reconnaissance",
+                "Trivy/Checkov/Semgrep-style cloud, container, IaC, and secrets control review where visible",
+                "AI triage-style prioritization for executive summary, remediation order, and business risk explanation",
             ])
             if assessment_mode == "ethical_pentesting":
                 depth = str(body.get("pentest_depth", "standard")).strip().lower()
@@ -227,6 +234,8 @@ def kryptscan_free_scan_fallback():
                     f"Ethical testing depth: {depth}",
                     f"Validation mode: {validation_mode.replace('_' , ' ')}",
                     "Non-destructive ethical pen-testing test run",
+                    "Safe exploitation boundary: no persistence, no credential theft, no destructive payloads, no data exfiltration",
+                    "Evidence-focused validation of reachable vulnerabilities, exposed services, web/API weaknesses, TLS posture, and identity/cloud indicators",
                 ])
             completed = MockScannerProvider().schedule(normalized_target, asset_type)
             scope_summary = f"Test-mode {assessment_mode.replace('_' , ' ')} for {normalized_target}."

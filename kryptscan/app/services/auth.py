@@ -28,7 +28,7 @@ class AuthService:
         code_hash = hash_verification_code(self.settings.app_secret, normalized, code)
         created_at = utcnow()
         expires_at = created_at.replace(microsecond=0)
-        expires_at = expires_at.timestamp() + 15 * 60
+        expires_at = expires_at.timestamp() + 10 * 60
 
         with get_connection() as connection:
             organization = connection.execute(
@@ -65,6 +65,15 @@ class AuthService:
 
             connection.execute(
                 """
+                UPDATE email_verifications
+                SET consumed_at = ?
+                WHERE email = ? AND consumed_at IS NULL
+                """,
+                (created_at.isoformat(), normalized),
+            )
+
+            connection.execute(
+                """
                 INSERT INTO email_verifications (email, code_hash, expires_at, created_at)
                 VALUES (?, ?, ?, ?)
                 """,
@@ -73,10 +82,11 @@ class AuthService:
 
         self.email_sender.send_verification_code(normalized, code, domain)
         return {
-            "message": "Verification code sent.",
+            "message": "Verification code sent. Use the newest code within 10 minutes.",
             "email": mask_email(normalized),
             "domain": domain,
             "delivery": self.settings.email_delivery,
+            "expires_in_minutes": 10,
         }
 
     def verify_code(self, email: str, code: str) -> Row:
@@ -99,13 +109,13 @@ class AuthService:
             ).fetchone()
 
             if record is None:
-                raise ValueError("No active verification code was found for that email.")
+                raise ValueError("No active verification code was found for that email. Request a new 10-minute code.")
 
             if int(record["expires_at"]) < int(now.timestamp()):
-                raise ValueError("That verification code has expired.")
+                raise ValueError("That verification code has expired. Request a new 10-minute code.")
 
             if expected_hash != record["code_hash"]:
-                raise ValueError("The verification code is invalid.")
+                raise ValueError("The verification code is invalid. Use the newest code sent to your email; codes expire after 10 minutes.")
 
             connection.execute(
                 "UPDATE email_verifications SET consumed_at = ? WHERE id = ?",

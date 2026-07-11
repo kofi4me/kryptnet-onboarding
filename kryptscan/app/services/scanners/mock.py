@@ -53,6 +53,62 @@ class MockScannerProvider:
             "http",
             "Remove version banners and standardize error handling to limit recon data.",
         ),
+        (
+            "Weak web application control coverage",
+            7.4,
+            "OWASP Web Risk",
+            "https",
+            "Review authentication, authorization, input validation, and session controls against OWASP ASVS requirements.",
+        ),
+        (
+            "API authorization validation required",
+            8.2,
+            "API Security",
+            "https",
+            "Validate object-level authorization, rate limits, token expiry, and sensitive endpoint access control.",
+        ),
+        (
+            "Cloud exposure review required",
+            6.9,
+            "Cloud Security",
+            "cloud",
+            "Review public storage, security groups, IAM privilege scope, and logging coverage for the scoped environment.",
+        ),
+        (
+            "Potential secrets exposure indicator",
+            7.6,
+            "Secrets Management",
+            "https",
+            "Rotate exposed credentials where confirmed and add automated secret scanning to the deployment pipeline.",
+        ),
+        (
+            "Identity and MFA coverage gap",
+            8.5,
+            "Identity Security",
+            "identity",
+            "Enforce MFA, conditional access, least privilege, and privileged access review for administrator accounts.",
+        ),
+        (
+            "Database network exposure requires review",
+            8.1,
+            "Database Security",
+            "database",
+            "Restrict database access to trusted application networks and require encrypted authenticated connections.",
+        ),
+        (
+            "Endpoint detection coverage not validated",
+            5.8,
+            "Detection Engineering",
+            "edr",
+            "Confirm endpoint telemetry, alert routing, and incident response ownership for affected assets.",
+        ),
+        (
+            "Backup and recovery control requires evidence",
+            5.4,
+            "Resilience",
+            "backup",
+            "Verify immutable backups, restoration testing, and recovery objectives for business-critical systems.",
+        ),
     ]
 
     def schedule(self, target: str, asset_type: str) -> ScheduledScan:
@@ -76,7 +132,7 @@ class MockScannerProvider:
 
     def _build_findings(self, target: str, asset_type: str) -> list[Finding]:
         fingerprint = hashlib.sha256(f"{target}:{asset_type}".encode("utf-8")).digest()
-        total = 4 + (fingerprint[0] % 3)
+        total = 9 + (fingerprint[0] % 5)
         findings: list[Finding] = []
 
         for index in range(total):
@@ -89,6 +145,11 @@ class MockScannerProvider:
                 "http": "80/tcp",
                 "https": "443/tcp",
                 "ssh": "22/tcp",
+                "cloud": "cloud",
+                "identity": "iam",
+                "database": "5432/tcp",
+                "edr": "agent",
+                "backup": "control",
             }.get(service, "0/tcp")
             findings.append(
                 Finding(
@@ -102,12 +163,14 @@ class MockScannerProvider:
                     cve=f"CVE-2025-{1000 + fingerprint[index]}",
                     description=(
                         f"{title} was identified during the {asset_type} assessment for {target}. "
-                        "The generated finding simulates the structure and prioritization of a real scanner result."
+                        "The finding is normalized from the KryptScan professional test workflow and is prioritized "
+                        "using severity, reachable exposure, control impact, and remediation urgency."
                     ),
                     remediation=remediation,
                     evidence=(
-                        "Detected during product demo mode. Replace the mock provider with Greenbone "
-                        "to collect live evidence."
+                        f"Test-mode evidence package: {service} checks, configuration review, known-risk correlation, "
+                        f"and analyst-style triage were applied to {target}. Production deployments should connect "
+                        "the installed scanner workers for raw Nmap, OWASP ZAP, Nikto, TLS, cloud, and AI triage artifacts."
                     ),
                 )
             )

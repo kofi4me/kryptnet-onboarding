@@ -1712,6 +1712,31 @@ textarea {
   font-weight: 800;
 }
 
+.process-meter {
+  height: 12px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(20, 32, 51, 0.08);
+  margin-bottom: 0.6rem;
+}
+
+.process-meter div {
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--cobalt), var(--coral));
+  transition: width 0.35s ease;
+}
+
+.process-timing {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+  color: var(--muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
 .process-steps {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
@@ -1760,6 +1785,14 @@ textarea {
   line-height: 1.45;
 }
 
+.process-step small {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
 .process-step.active {
   border-color: rgba(47, 99, 255, 0.34);
   box-shadow: 0 12px 28px rgba(47, 99, 255, 0.12);
@@ -1803,4 +1836,41 @@ textarea {
   color: var(--ink);
   font-family: "Sora", sans-serif;
   font-size: 1.45rem;
+}
+
+.action-guidance {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 0.75rem;
+  margin: 1rem 0;
+}
+
+.action-guidance article {
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(20, 32, 51, 0.08);
+  background: linear-gradient(145deg, rgba(20, 32, 51, 0.96), rgba(36, 52, 78, 0.94));
+  color: #fff;
+}
+
+.action-guidance span {
+  display: block;
+  color: #8fb2ff;
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.action-guidance strong {
+  display: block;
+  margin-top: 0.35rem;
+  font-family: "Sora", sans-serif;
+  font-size: 1rem;
+}
+
+.action-guidance p {
+  margin: 0.55rem 0 0;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.55;
 }

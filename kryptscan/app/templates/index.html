@@ -116,7 +116,7 @@
                 KryptNet Onboarding
               </a>
               <div id="auth-status" class="status-card neutral">
-                Enter your email to receive a verification code and begin registration.
+                Enter your email to receive a 10-minute verification code and begin registration.
               </div>
             </article>
           </div>
@@ -129,7 +129,7 @@
           <div class="eyebrow">Verification Required</div>
           <h1>Check your inbox.</h1>
           <p class="lede">
-            The verification code confirms that the request is tied to a real email identity before
+            The 10-minute verification code confirms that the request is tied to a real email identity before
             vulnerability assessment or ethical pen-testing tools are shown.
           </p>
           <p class="welcome-copy">
@@ -143,7 +143,7 @@
             <div>
               <div class="eyebrow">Code Verification</div>
               <h2>Enter your verification code.</h2>
-              <p class="inline-copy">Use the six-digit code sent to your email. Gmail and other personal emails are accepted for free scans.</p>
+              <p class="inline-copy">Use the newest six-digit code sent to your email. Codes expire after 10 minutes, and requesting a new code cancels older codes.</p>
             </div>
           </div>
           <form id="verify-code-form" class="stack" action="/kryptscan/verify-code" method="post">
@@ -162,7 +162,7 @@
             <button type="submit">Verify Email</button>
           </form>
           <div id="verify-status" class="status-card neutral">
-            Enter the verification code to continue.
+            Enter the newest verification code within 10 minutes to continue.
           </div>
         </article>
       </section>
@@ -416,6 +416,7 @@
               </div>
 
               <div id="report-kpi-grid" class="report-kpi-grid hidden"></div>
+              <div id="report-action-guidance" class="action-guidance hidden"></div>
               <div id="assessment-process" class="assessment-process hidden"></div>
               <p id="executive-summary" class="summary-copy">
                 Launch an assessment to populate the executive summary and technical findings.
@@ -494,7 +495,7 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260627-professional-report-email"></script>
+    <script src="./static/app.js?v=20260711-deep-scan-workflow"></script>
   </body>
 </html>
 
