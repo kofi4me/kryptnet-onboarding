@@ -402,6 +402,8 @@ def kryptscan_email_report(scan_id):
             ).fetchone()
             if scan is None or not scan["report_json"]:
                 return jsonify({"detail": "Completed report was not found for this scan."}), 404
+            if scan["scan_tier"] == "free_preview":
+                return jsonify({"detail": "PDF email reports are available for Full Vulnerability Assessment and Ethical Pen-Testing only."}), 400
 
             report = AssessmentReport.model_validate_json(scan["report_json"])
             safe_target = re.sub(r"[^a-z0-9]+", "-", scan["normalized_target"].lower()).strip("-") or "target"

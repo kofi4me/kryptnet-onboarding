@@ -628,7 +628,19 @@ async function runTestScanFallback(body) {
   document.getElementById("scan-form").reset();
   selectAssessmentMode(scan.assessment_mode);
   selectScanTier(scan.scan_tier, { silent: true });
-  setStatus("dashboard-status", `${formatMode(scan.assessment_mode)} completed successfully for ${scan.target}. Test report is ready below.`, "success");
+  if (scan.scan_tier === "free_preview") {
+    setStatus(
+      "dashboard-status",
+      `Free vulnerability scan completed successfully for ${scan.target}. Your web summary is ready below. PDF email is available with the full paid services only.`,
+      "success"
+    );
+  } else {
+    setStatus(
+      "dashboard-status",
+      `${formatMode(scan.assessment_mode)} completed successfully for ${scan.target}. The professional report is ready below. Use Email PDF Report if you want a copy sent to your verified email.`,
+      "success"
+    );
+  }
 }
 async function handleLogout() {
   await fetch(apiPath("/api/auth/logout"), { method: "POST", headers: csrfHeaders() });
@@ -1100,10 +1112,14 @@ function renderReport(report) {
     .classList.toggle("hidden", !activeScan?.report_pdf_available);
   const emailButton = document.getElementById("report-email-button");
   if (emailButton) {
-    emailButton.classList.remove("hidden");
-    emailButton.onclick = () => {
-      if (state.activeScanId) emailReport(state.activeScanId);
-    };
+    const canEmailPdf = activeScan && activeScan.scan_tier !== "free_preview";
+    emailButton.classList.toggle("hidden", !canEmailPdf);
+    emailButton.textContent = "Email PDF Report";
+    emailButton.onclick = canEmailPdf
+      ? () => {
+          if (state.activeScanId) emailReport(state.activeScanId);
+        }
+      : null;
   }
   document.getElementById("executive-summary").textContent = report.executive_summary;
   renderReportKpis(report);
