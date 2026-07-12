@@ -137,7 +137,8 @@ def _build_pdf_bytes(
     owner_details: dict[str, str] | None = None,
 ) -> bytes:
     canvas = _Canvas()
-    title = "Sentinel Scope Ethical Pen-Testing" if assessment_mode in {"ethical_pentesting", "authorized_pentest"} else "Sentinel Scope Vulnerability Assessment"
+    title = "KryptScan Ethical Pen-Testing Report" if assessment_mode in {"ethical_pentesting", "authorized_pentest"} else "KryptScan Vulnerability Assessment Report"
+    canvas.text("KryptNet Security Services", size=11, bold=True, color=(0.18, 0.39, 0.92))
     canvas.text(title, size=20, bold=True)
     canvas.text(target, size=15, bold=True, color=(0.18, 0.45, 0.62))
     canvas.spacer(4)

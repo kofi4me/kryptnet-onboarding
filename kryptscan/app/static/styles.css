@@ -1874,3 +1874,54 @@ textarea {
   color: rgba(255, 255, 255, 0.78);
   line-height: 1.55;
 }
+
+.operations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.operation-card {
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid rgba(47, 99, 255, 0.16);
+  background: linear-gradient(145deg, rgba(255,255,255,0.98), rgba(239,245,255,0.9));
+}
+
+.operation-card span {
+  display: block;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.operation-card strong {
+  display: block;
+  margin-top: 0.35rem;
+  color: var(--ink);
+  font-family: "Sora", sans-serif;
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.remediation-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.remediation-status-row button {
+  width: auto;
+  min-height: 34px;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.82rem;
+}
+
+.pill.open {
+  background: rgba(47, 99, 255, 0.12);
+  color: var(--cobalt);
+}

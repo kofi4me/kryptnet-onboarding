@@ -310,6 +310,37 @@
               <input id="scan-authorization-input" type="checkbox" required />
               <span>I confirm I own this target or have permission from the client/asset owner to run this scan.</span>
             </label>
+            <section id="engagement-authorization-fields" class="ethical-fields hidden">
+              <div class="section-head">
+                <div>
+                  <div class="eyebrow">Engagement Authorization</div>
+                  <h3>Client and scope record.</h3>
+                  <p class="inline-copy">Required for Full Vulnerability Assessment and Ethical Pen-Testing. This protects the client, tester, and KryptNet.</p>
+                </div>
+              </div>
+              <div class="form-grid">
+                <label>
+                  <span>Client / asset owner name</span>
+                  <input id="engagement-client-input" type="text" placeholder="Client company or asset owner" />
+                </label>
+                <label>
+                  <span>Authorization reference</span>
+                  <input id="engagement-reference-input" type="text" placeholder="Ticket, contract, email approval, or ROE reference" />
+                </label>
+                <label>
+                  <span>Testing window</span>
+                  <input id="engagement-window-input" type="text" placeholder="Approved dates and time zone" />
+                </label>
+                <label>
+                  <span>Emergency contact</span>
+                  <input id="engagement-contact-input" type="text" placeholder="Name, phone, or email" />
+                </label>
+              </div>
+              <label>
+                <span>Scope notes and exclusions</span>
+                <textarea id="engagement-scope-input" placeholder="Allowed systems, excluded systems, rate limits, client instructions, and stop conditions"></textarea>
+              </label>
+            </section>
             <label id="ai-triage-consent-block" class="check-option scan-authorization-option hidden">
               <input id="ai-triage-consent-input" type="checkbox" />
               <span>I authorize KryptScan to use AI report drafting for this paid assessment using a redacted assessment summary. Free scans do not use AI report drafting.</span>
@@ -358,6 +389,7 @@
           <div id="payment-list" class="commercial-readiness"></div>
           <div id="profile-grid" class="profile-grid"></div>
           <div id="scanner-health-grid" class="toolchain-grid"></div>
+          <div id="operations-grid" class="operations-grid"></div>
           <div id="toolchain-grid" class="toolchain-grid"></div>
           <div id="stats-grid" class="stats-grid"></div>
           <div id="scan-progress-grid" class="scan-progress-grid"></div>
@@ -499,7 +531,7 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260712-ai-consent-gate"></script>
+    <script src="./static/app.js?v=20260712-engagement-ops-retest"></script>
   </body>
 </html>
 

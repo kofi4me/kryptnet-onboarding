@@ -185,6 +185,16 @@ def kryptscan_free_scan_fallback():
         if assessment_mode == "ethical_pentesting":
             scan_tier = "full_scan"
         ai_triage_consent = bool(body.get("ai_triage_consent")) and scan_tier == "full_scan"
+        engagement_payload = body.get("engagement") or {}
+        engagement_record = {
+            "client_name": str(engagement_payload.get("client_name", "")).strip(),
+            "authorization_reference": str(engagement_payload.get("authorization_reference", "")).strip(),
+            "testing_window": str(engagement_payload.get("testing_window", "")).strip(),
+            "emergency_contact": str(engagement_payload.get("emergency_contact", "")).strip(),
+            "scope_notes": str(engagement_payload.get("scope_notes", "")).strip(),
+        }
+        if scan_tier == "full_scan" and any(len(value) < 3 for value in engagement_record.values()):
+            return jsonify({"detail": "Complete the client authorization record before running paid assessment or ethical pen-testing."}), 400
 
         asset_type = body.get("asset_type") or infer_asset_type(target)
         if asset_type not in {"website", "network"}:
@@ -250,7 +260,10 @@ def kryptscan_free_scan_fallback():
                     "Evidence-focused validation of reachable vulnerabilities, exposed services, web/API weaknesses, TLS posture, and identity/cloud indicators",
                 ])
             completed = MockScannerProvider().schedule(normalized_target, asset_type)
-            scope_summary = f"Test-mode {assessment_mode.replace('_' , ' ')} for {normalized_target}."
+            scope_summary = (
+                f"Client: {engagement_record['client_name']}. Scope: {engagement_record['scope_notes']}. "
+                f"Testing window: {engagement_record['testing_window']}. Authorization: {engagement_record['authorization_reference']}."
+            )
         report = completed.report.model_copy(
             update={
                 "scan_protocols": scan_protocols,
@@ -260,6 +273,32 @@ def kryptscan_free_scan_fallback():
         now = utcnow().isoformat()
         init_kryptscan_db()
         with get_connection() as connection:
+            engagement_id = None
+            if scan_tier == "full_scan":
+                cursor = connection.execute(
+                    """
+                    INSERT INTO engagements (
+                        organization_id, client_name, authorization_reference, scope_notes,
+                        testing_window, allowed_categories_json, emergency_contact, status,
+                        approved_by, approved_at, created_by, created_at
+                    )
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 'approved', ?, ?, ?, ?)
+                    """,
+                    (
+                        user["organization_id"],
+                        engagement_record["client_name"],
+                        engagement_record["authorization_reference"],
+                        engagement_record["scope_notes"],
+                        engagement_record["testing_window"],
+                        json.dumps(["network", "web", "api", "tls", "cloud", "identity"]),
+                        engagement_record["emergency_contact"],
+                        user["id"],
+                        now,
+                        user["id"],
+                        now,
+                    ),
+                )
+                engagement_id = cursor.lastrowid
             connection.execute(
                 """
                 INSERT INTO targets (
@@ -278,7 +317,12 @@ def kryptscan_free_scan_fallback():
                     asset_type,
                     user["email_domain"],
                     "verified-email-test-mode-attestation",
-                    "Verified email user confirmed ownership or client/asset-owner permission before testing.",
+                    (
+                        f"Verified user confirmed permission. Client: {engagement_record['client_name']}; "
+                        f"Authorization: {engagement_record['authorization_reference']}; Window: {engagement_record['testing_window']}."
+                        if scan_tier == "full_scan"
+                        else "Verified email user confirmed ownership or client/asset-owner permission before testing."
+                    ),
                     user["id"],
                     now,
                 ),
@@ -297,18 +341,18 @@ def kryptscan_free_scan_fallback():
                     assessment_mode, scan_tier, status, report_json, metrics_json,
                     scan_profile_json, created_at, started_at, refreshed_at, completed_at
                 )
-                VALUES (?, ?, ?, NULL, ?, ?, ?,
-                        'completed', ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     user["organization_id"],
                     target_row["id"],
                     user["id"],
+                    engagement_id,
                     scanner_backend,
                     assessment_mode,
                     scan_tier,
                     report.model_dump_json(),
-                    json.dumps({"risk_score": report.risk_score}),
+                    json.dumps({"risk_score": report.risk_score, "job_phase": "completed", "worker": scanner_backend}),
                     json.dumps(scan_protocols),
                     now,
                     now,
@@ -317,6 +361,22 @@ def kryptscan_free_scan_fallback():
                 ),
             )
             scan_id = cursor.lastrowid
+            connection.execute(
+                """
+                INSERT INTO audit_events (organization_id, actor_id, action, details_json, created_at)
+                VALUES (?, ?, 'engagement.approved', ?, ?)
+                """,
+                (
+                    user["organization_id"],
+                    user["id"],
+                    json.dumps({"engagement_id": engagement_id, "client": engagement_record["client_name"]}) if engagement_id else json.dumps({"free_scan": True}),
+                    now,
+                ),
+            )
+            # The insert above is intentionally followed by audit writes; keep scan_id from the scan cursor.
+        with get_connection() as connection:
+            scan_row = connection.execute("SELECT MAX(id) AS id FROM scans WHERE organization_id = ?", (user["organization_id"],)).fetchone()
+            scan_id = scan_row["id"]
             connection.execute(
                 """
                 INSERT INTO audit_events (organization_id, actor_id, action, details_json, created_at)
@@ -333,6 +393,8 @@ def kryptscan_free_scan_fallback():
                         "test_mode_payment_bypass": scan_tier == "full_scan",
                         "ai_triage_consent": ai_triage_consent,
                         "openai_configured": bool(settings.openai_api_key),
+                        "engagement_id": engagement_id,
+                        "job_lifecycle": ["queued", "running", "tool_phase", "report_ready"],
                     }),
                     now,
                 ),
@@ -345,7 +407,7 @@ def kryptscan_free_scan_fallback():
             "asset_type": asset_type,
             "assessment_mode": assessment_mode,
             "scan_tier": scan_tier,
-            "engagement_id": None,
+            "engagement_id": engagement_id,
             "manual_finding_count": 0,
             "scanner_backend": scanner_backend,
             "status": "completed",
@@ -369,9 +431,27 @@ def kryptscan_free_scan_fallback():
                 "latest_risk_score": report.risk_score,
                 "latest_severity_counts": severity,
             },
+            "operations": {
+                "scanner_worker": "Render fallback active; VPS scanner worker required for real Nmap/ZAP/Nikto execution",
+                "job_pipeline": "Queued -> Running -> Tool Phase -> Report Ready -> Retest",
+                "ai_readiness": "OpenAI configured" if settings.openai_api_key else "OPENAI_API_KEY missing",
+            },
             "toolchain": [],
             "profiles": [],
-            "engagements": [],
+            "engagements": [
+                {
+                    "id": engagement_id,
+                    "client_name": engagement_record["client_name"],
+                    "authorization_reference": engagement_record["authorization_reference"],
+                    "scope_notes": engagement_record["scope_notes"],
+                    "testing_window": engagement_record["testing_window"],
+                    "allowed_categories": ["network", "web", "api", "tls", "cloud", "identity"],
+                    "emergency_contact": engagement_record["emergency_contact"],
+                    "status": "approved",
+                    "approved_at": now,
+                    "created_at": now,
+                }
+            ] if engagement_id else [],
             "members": [],
             "payments": [],
             "manual_findings": [],
@@ -382,6 +462,164 @@ def kryptscan_free_scan_fallback():
     except Exception as exc:
         app.logger.exception("KryptScan test scan fallback failed")
         return jsonify({"detail": str(exc) or "Scan could not be completed."}), 500
+
+
+@app.route("/kryptscan/retest/<int:scan_id>", methods=["POST"])
+def kryptscan_retest_fallback(scan_id):
+    try:
+        from kryptscan.app.config import get_settings as get_kryptscan_settings
+        from kryptscan.app.db import get_connection, init_db as init_kryptscan_db
+        from kryptscan.app.emailer import get_email_sender
+        from kryptscan.app.models import AssessmentReport
+        from kryptscan.app.security import verify_session_token, utcnow
+        from kryptscan.app.services.auth import AuthService
+        from kryptscan.app.services.scanners.free_preview import FreePreviewScannerProvider
+        from kryptscan.app.services.scanners.mock import MockScannerProvider
+
+        settings = get_kryptscan_settings()
+        token = request.cookies.get(settings.session_cookie_name)
+        if not token:
+            return jsonify({"detail": "Email verification is required before running a retest."}), 401
+        payload = verify_session_token(settings, token)
+        if payload is None:
+            return jsonify({"detail": "Email verification is required before running a retest."}), 401
+        user = AuthService(settings, get_email_sender(settings)).get_user_by_id(int(payload["uid"]))
+        if user is None or not user["is_verified"]:
+            return jsonify({"detail": "User session is no longer valid."}), 401
+
+        init_kryptscan_db()
+        with get_connection() as connection:
+            previous = connection.execute(
+                """
+                SELECT scans.*, targets.normalized_target, targets.asset_type, targets.target
+                FROM scans
+                JOIN targets ON targets.id = scans.target_id
+                WHERE scans.id = ? AND scans.organization_id = ? AND scans.status = 'completed'
+                """,
+                (scan_id, user["organization_id"]),
+            ).fetchone()
+            if previous is None or not previous["report_json"]:
+                return jsonify({"detail": "Completed scan was not found for retest."}), 404
+            previous_report = AssessmentReport.model_validate_json(previous["report_json"])
+
+        provider = FreePreviewScannerProvider() if previous["scan_tier"] == "free_preview" else MockScannerProvider()
+        completed = provider.schedule(previous["normalized_target"], previous["asset_type"])
+        base_report = completed.report
+        previous_score = previous_report.risk_score
+        current_score = base_report.risk_score
+        delta = current_score - previous_score
+        comparison = (
+            f"Retest comparison for scan #{scan_id}: previous risk score {previous_score}, "
+            f"current risk score {current_score}, change {delta:+d}."
+        )
+        protocols = list(previous["scan_profile_json"] and json.loads(previous["scan_profile_json"]) or [])
+        protocols.extend([
+            "Retest workflow: repeated authorized checks against the same target and service mode",
+            comparison,
+            "Remediation tracker: compare fixed, remaining, and newly observed findings before client closure",
+        ])
+        report = base_report.model_copy(
+            update={
+                "scope_summary": f"{comparison} Retest used the same authorized target, assessment mode, and tier as the original scan.",
+                "scan_protocols": protocols,
+                "methodology": [
+                    "Retest authorization and previous-report lookup",
+                    "Repeat safe assessment workflow against the same target",
+                    "Risk score comparison and remediation validation summary",
+                    *base_report.methodology,
+                ],
+            }
+        )
+        now = utcnow().isoformat()
+        with get_connection() as connection:
+            cursor = connection.execute(
+                """
+                INSERT INTO scans (
+                    organization_id, target_id, requested_by, engagement_id, scanner_backend,
+                    assessment_mode, scan_tier, status, report_json, metrics_json,
+                    scan_profile_json, created_at, started_at, refreshed_at, completed_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    user["organization_id"],
+                    previous["target_id"],
+                    user["id"],
+                    previous["engagement_id"],
+                    previous["scanner_backend"],
+                    previous["assessment_mode"],
+                    previous["scan_tier"],
+                    report.model_dump_json(),
+                    json.dumps({"risk_score": report.risk_score, "previous_risk_score": previous_score, "risk_delta": delta, "job_phase": "retest_completed"}),
+                    json.dumps(protocols),
+                    now,
+                    now,
+                    now,
+                    now,
+                ),
+            )
+            new_scan_id = cursor.lastrowid
+            connection.execute(
+                """
+                INSERT INTO audit_events (organization_id, actor_id, action, details_json, created_at)
+                VALUES (?, ?, 'scan.retest.completed', ?, ?)
+                """,
+                (
+                    user["organization_id"],
+                    user["id"],
+                    json.dumps({"previous_scan_id": scan_id, "new_scan_id": new_scan_id, "previous_score": previous_score, "current_score": current_score, "delta": delta}),
+                    now,
+                ),
+            )
+        severity = report.severity_counts.model_dump()
+        scan = {
+            "id": new_scan_id,
+            "target": previous["normalized_target"],
+            "asset_type": previous["asset_type"],
+            "assessment_mode": previous["assessment_mode"],
+            "scan_tier": previous["scan_tier"],
+            "engagement_id": previous["engagement_id"],
+            "manual_finding_count": 0,
+            "scanner_backend": previous["scanner_backend"],
+            "status": "completed",
+            "created_at": now,
+            "completed_at": now,
+            "error_message": None,
+            "risk_score": report.risk_score,
+            "severity_counts": severity,
+            "report_pdf_available": False,
+            "report_email_sent_at": None,
+            "report_email_error": None,
+        }
+        dashboard = {
+            "user": {"id": user["id"], "email": user["email"], "role": user["role"]},
+            "organization": {"id": user["organization_id"], "name": user["organization_name"], "domain": user["email_domain"]},
+            "entitlement": None,
+            "stats": {
+                "authorized_assets": 1,
+                "total_scans": 2,
+                "active_scans": 0,
+                "latest_risk_score": report.risk_score,
+                "latest_severity_counts": severity,
+            },
+            "operations": {
+                "scanner_worker": "Render fallback active; VPS scanner worker required for real tool execution",
+                "job_pipeline": "Retest completed with previous/current score comparison",
+                "ai_readiness": "OpenAI configured" if settings.openai_api_key else "OPENAI_API_KEY missing",
+            },
+            "toolchain": [],
+            "profiles": [],
+            "engagements": [],
+            "members": [],
+            "payments": [],
+            "manual_findings": [],
+            "audit_events": [],
+            "scans": [scan],
+        }
+        return jsonify({"scan": scan, "report": report.model_dump(mode="json"), "dashboard": dashboard, "previous_risk_score": previous_score})
+    except Exception as exc:
+        app.logger.exception("KryptScan retest fallback failed")
+        return jsonify({"detail": str(exc) or "Retest could not be completed."}), 500
 
 
 @app.route("/kryptscan/email-report/<int:scan_id>", methods=["POST"])
@@ -412,9 +650,12 @@ def kryptscan_email_report(scan_id):
             scan = connection.execute(
                 """
                 SELECT scans.*, targets.normalized_target, targets.asset_type, targets.target,
-                       targets.ownership_domain, targets.authorization_method, targets.verification_note
+                       targets.ownership_domain, targets.authorization_method, targets.verification_note,
+                       engagements.client_name, engagements.authorization_reference,
+                       engagements.scope_notes, engagements.testing_window, engagements.emergency_contact
                 FROM scans
                 JOIN targets ON targets.id = scans.target_id
+                LEFT JOIN engagements ON engagements.id = scans.engagement_id
                 WHERE scans.id = ? AND scans.organization_id = ? AND scans.status = 'completed'
                 """,
                 (scan_id, user["organization_id"]),
@@ -442,10 +683,13 @@ def kryptscan_email_report(scan_id):
                     "Testing mode": "KryptScan test mode" if scan["scanner_backend"] == "test_mode" else scan["scanner_backend"],
                 },
                 owner_details={
+                    "Client / asset owner": scan["client_name"] or scan["ownership_domain"],
                     "Target": scan["normalized_target"],
                     "Asset type": scan["asset_type"],
-                    "Authorization method": scan["authorization_method"],
-                    "Authorization note": scan["verification_note"] or "Confirmed by verified user before testing.",
+                    "Authorization reference": scan["authorization_reference"] or scan["authorization_method"],
+                    "Testing window": scan["testing_window"] or "Confirmed by verified user before testing.",
+                    "Emergency contact": scan["emergency_contact"] or "Not supplied",
+                    "Scope notes": scan["scope_notes"] or scan["verification_note"] or "Confirmed by verified user before testing.",
                 },
             )
             email_sender.send_assessment_report(

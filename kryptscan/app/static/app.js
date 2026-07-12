@@ -209,9 +209,13 @@ function paidServiceSelected() {
 function updateAiConsentVisibility() {
   const block = document.getElementById("ai-triage-consent-block");
   const input = document.getElementById("ai-triage-consent-input");
+  const engagementBlock = document.getElementById("engagement-authorization-fields");
   if (!block) return;
   const show = paidServiceSelected();
   block.classList.toggle("hidden", !show);
+  if (engagementBlock) {
+    engagementBlock.classList.toggle("hidden", !show);
+  }
   if (!show && input) {
     input.checked = false;
   }
@@ -378,12 +382,29 @@ async function handleCreateScan(event) {
     setStatus("dashboard-status", "Confirm that you own the target or have client/asset-owner permission before scanning.", "error");
     return;
   }
+  const isPaidService = assessment_mode === "ethical_pentesting" || scan_tier === "full_scan";
+  const engagement = {
+    client_name: document.getElementById("engagement-client-input")?.value.trim() || "",
+    authorization_reference: document.getElementById("engagement-reference-input")?.value.trim() || "",
+    testing_window: document.getElementById("engagement-window-input")?.value.trim() || "",
+    emergency_contact: document.getElementById("engagement-contact-input")?.value.trim() || "",
+    scope_notes: document.getElementById("engagement-scope-input")?.value.trim() || "",
+  };
+  if (isPaidService && Object.values(engagement).some((value) => value.length < 3)) {
+    setStatus(
+      "dashboard-status",
+      "Complete the client authorization record before running Full Vulnerability Assessment or Ethical Pen-Testing.",
+      "error"
+    );
+    return;
+  }
   const body = {
     target,
     assessment_mode,
     scan_tier,
     authorization_confirmed: authorizationConfirmed,
-    ai_triage_consent: document.getElementById("ai-triage-consent-input")?.checked === true && (assessment_mode === "ethical_pentesting" || scan_tier === "full_scan"),
+    ai_triage_consent: document.getElementById("ai-triage-consent-input")?.checked === true && isPaidService,
+    engagement,
   };
   if (assessment_mode === "ethical_pentesting") {
     body.pentest_depth = document.getElementById("pentest-depth-input").value;
@@ -821,6 +842,7 @@ function renderDashboard(payload) {
   renderCommercialReadiness(payload);
   renderMembers(payload.members || []);
   renderPayments(payload.payments || []);
+  renderOperations(payload);
   renderAudit(payload.audit_events || []);
   updateServiceWorkspace();
 
@@ -893,6 +915,11 @@ function renderDashboard(payload) {
           </div>
           <div class="scan-actions">
             <button type="button" onclick="refreshScan(${scan.id})">Refresh</button>
+            ${
+              scan.status === "completed"
+                ? `<button type="button" class="ghost" onclick="runRetest(${scan.id})">Run Retest</button>`
+                : ""
+            }
             <button type="button" class="ghost" onclick="loadReport(${scan.id})">View Report</button>
             ${
               scan.report_pdf_available
@@ -900,6 +927,58 @@ function renderDashboard(payload) {
                 : ""
             }
           </div>
+        </article>
+      `
+    )
+    .join("");
+}
+
+async function runRetest(scanId) {
+  setStatus("dashboard-status", "Starting retest using the same authorized target and service mode...", "neutral");
+  const response = await fetchWithTimeout(`/kryptscan/retest/${scanId}`, {
+    method: "POST",
+    headers: csrfHeaders(),
+  }, 30000);
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    setStatus("dashboard-status", payload.detail || "Unable to run retest.", "error");
+    return;
+  }
+  state.dashboard = payload.dashboard;
+  state.activeScanId = payload.scan.id;
+  state.activeReport = payload.report;
+  renderDashboard(payload.dashboard);
+  renderReport(payload.report);
+  setStatus(
+    "dashboard-status",
+    `Retest completed for ${payload.scan.target}. Previous score ${payload.previous_risk_score}; current score ${payload.scan.risk_score}.`,
+    "success"
+  );
+}
+
+function renderOperations(payload) {
+  const element = document.getElementById("operations-grid");
+  if (!element) return;
+  const operations = payload.operations || {};
+  const scans = payload.scans || [];
+  const completed = scans.filter((scan) => scan.status === "completed").length;
+  const paid = scans.filter((scan) => scan.scan_tier !== "free_preview").length;
+  const emailed = scans.filter((scan) => scan.report_email_sent_at).length;
+  const failedEmail = scans.filter((scan) => scan.report_email_error).length;
+  const cards = [
+    ["Scanner Worker", operations.scanner_worker || "Render fallback active"],
+    ["Job Pipeline", operations.job_pipeline || "Queued, running, completed, retest-ready"],
+    ["Paid Reports", `${paid} paid service report(s)`],
+    ["PDF Delivery", `${emailed} sent / ${failedEmail} failed`],
+    ["Retest Ready", `${completed} completed scan(s)`],
+    ["AI Readiness", operations.ai_readiness || "Consent required before AI drafting"],
+  ];
+  element.innerHTML = cards
+    .map(
+      ([label, value]) => `
+        <article class="operation-card">
+          <span>${escapeHtml(label)}</span>
+          <strong>${escapeHtml(value)}</strong>
         </article>
       `
     )
@@ -1182,13 +1261,18 @@ function renderReport(report) {
 
   document.getElementById("remediation-list").innerHTML = report.remediation_plan
     .map(
-      (item) => `
+      (item, index) => `
         <article class="check-card">
           <div class="meta-line">
             <strong>${escapeHtml(item.title)}</strong>
             <span class="pill ${item.priority.toLowerCase()}">${escapeHtml(item.priority)}</span>
           </div>
           <p>${escapeHtml(item.action)}</p>
+          <div class="remediation-status-row">
+            <button type="button" class="ghost" onclick="markRemediationStatus(${index}, 'In Progress')">In Progress</button>
+            <button type="button" class="ghost" onclick="markRemediationStatus(${index}, 'Fixed')">Fixed</button>
+            <span id="remediation-status-${index}" class="pill open">Open</span>
+          </div>
         </article>
       `
     )
@@ -1344,7 +1428,14 @@ function escapeHtml(value) {
 }
 
 window.refreshScan = refreshScan;
+window.runRetest = runRetest;
 window.loadReport = loadReport;
 window.downloadReport = downloadReport;
 window.emailReport = emailReport;
+window.markRemediationStatus = (index, label) => {
+  const element = document.getElementById(`remediation-status-${index}`);
+  if (!element) return;
+  element.textContent = label;
+  element.className = `pill ${label === "Fixed" ? "completed" : "warn"}`;
+};
 
