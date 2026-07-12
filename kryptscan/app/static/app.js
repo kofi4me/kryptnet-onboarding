@@ -170,6 +170,7 @@ function selectAssessmentMode(mode) {
   if (tierSelector) {
     tierSelector.classList.toggle("hidden", clientOnly || mode !== "vulnerability_assessment");
   }
+  updateAiConsentVisibility();
   updateScanSubmitText();
   const subtitle = document.getElementById("dashboard-subtitle");
   if (subtitle && state.dashboard) {
@@ -193,11 +194,27 @@ function selectScanTier(tier, options = {}) {
   document.querySelectorAll("[data-scan-tier]").forEach((button) => {
     button.classList.toggle("active", button.dataset.scanTier === tier);
   });
+  updateAiConsentVisibility();
   updateScanSubmitText();
   if (!options.silent && state.dashboard) {
     renderCommercialReadiness(state.dashboard);
   }
   updateServiceWorkspace();
+}
+
+function paidServiceSelected() {
+  return state.assessmentMode === "ethical_pentesting" || state.scanTier === "full_scan";
+}
+
+function updateAiConsentVisibility() {
+  const block = document.getElementById("ai-triage-consent-block");
+  const input = document.getElementById("ai-triage-consent-input");
+  if (!block) return;
+  const show = paidServiceSelected();
+  block.classList.toggle("hidden", !show);
+  if (!show && input) {
+    input.checked = false;
+  }
 }
 
 function updateScanSubmitText() {
@@ -361,7 +378,13 @@ async function handleCreateScan(event) {
     setStatus("dashboard-status", "Confirm that you own the target or have client/asset-owner permission before scanning.", "error");
     return;
   }
-  const body = { target, assessment_mode, scan_tier, authorization_confirmed: authorizationConfirmed };
+  const body = {
+    target,
+    assessment_mode,
+    scan_tier,
+    authorization_confirmed: authorizationConfirmed,
+    ai_triage_consent: document.getElementById("ai-triage-consent-input")?.checked === true && (assessment_mode === "ethical_pentesting" || scan_tier === "full_scan"),
+  };
   if (assessment_mode === "ethical_pentesting") {
     body.pentest_depth = document.getElementById("pentest-depth-input").value;
     body.validation_mode = document.getElementById("validation-mode-input").value;

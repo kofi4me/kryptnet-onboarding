@@ -310,6 +310,10 @@
               <input id="scan-authorization-input" type="checkbox" required />
               <span>I confirm I own this target or have permission from the client/asset owner to run this scan.</span>
             </label>
+            <label id="ai-triage-consent-block" class="check-option scan-authorization-option hidden">
+              <input id="ai-triage-consent-input" type="checkbox" />
+              <span>I authorize KryptScan to use AI report drafting for this paid assessment using a redacted assessment summary. Free scans do not use AI report drafting.</span>
+            </label>
             <div id="ethical-pentest-fields" class="ethical-fields hidden">
               <div class="form-grid">
                 <label>
@@ -495,7 +499,7 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260711-paid-pdf-prompt"></script>
+    <script src="./static/app.js?v=20260712-ai-consent-gate"></script>
   </body>
 </html>
 

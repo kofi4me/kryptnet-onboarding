@@ -184,6 +184,7 @@ def kryptscan_free_scan_fallback():
             return jsonify({"detail": "Scan tier must be free_preview or full_scan."}), 400
         if assessment_mode == "ethical_pentesting":
             scan_tier = "full_scan"
+        ai_triage_consent = bool(body.get("ai_triage_consent")) and scan_tier == "full_scan"
 
         asset_type = body.get("asset_type") or infer_asset_type(target)
         if asset_type not in {"website", "network"}:
@@ -227,6 +228,17 @@ def kryptscan_free_scan_fallback():
                 "Trivy/Checkov/Semgrep-style cloud, container, IaC, and secrets control review where visible",
                 "AI triage-style prioritization for executive summary, remediation order, and business risk explanation",
             ])
+            if ai_triage_consent:
+                scan_protocols.append(
+                    "AI report drafting consent recorded: user authorized AI-assisted reporting with a redacted assessment summary"
+                )
+                scan_protocols.append(
+                    "OpenAI API configuration status: configured" if settings.openai_api_key else "OpenAI API configuration status: missing OPENAI_API_KEY"
+                )
+            else:
+                scan_protocols.append(
+                    "AI report drafting not used: user did not opt in for this paid assessment"
+                )
             if assessment_mode == "ethical_pentesting":
                 depth = str(body.get("pentest_depth", "standard")).strip().lower()
                 validation_mode = str(body.get("validation_mode", "safe_validation")).strip().lower()
@@ -314,7 +326,14 @@ def kryptscan_free_scan_fallback():
                     user["organization_id"],
                     user["id"],
                     "scan.completed",
-                    json.dumps({"scan_id": scan_id, "backend": scanner_backend, "tier": scan_tier, "test_mode_payment_bypass": scan_tier == "full_scan"}),
+                    json.dumps({
+                        "scan_id": scan_id,
+                        "backend": scanner_backend,
+                        "tier": scan_tier,
+                        "test_mode_payment_bypass": scan_tier == "full_scan",
+                        "ai_triage_consent": ai_triage_consent,
+                        "openai_configured": bool(settings.openai_api_key),
+                    }),
                     now,
                 ),
             )
