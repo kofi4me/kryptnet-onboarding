@@ -104,6 +104,9 @@ class Settings:
     openai_api_key: str
     openai_base_url: str
     openai_model: str
+    scanner_worker_url: str
+    scanner_worker_token: str
+    scanner_worker_timeout_seconds: int
     greenbone_connection: str
     greenbone_host: str
     greenbone_port: int
@@ -192,6 +195,9 @@ def get_settings() -> Settings:
         openai_api_key=_env("OPENAI_API_KEY", ""),
         openai_base_url=_env("OPENAI_BASE_URL", "https://api.openai.com/v1"),
         openai_model=_env("OPENAI_MODEL", "gpt-5-mini"),
+        scanner_worker_url=_env("SCANNER_WORKER_URL", ""),
+        scanner_worker_token=_env("SCANNER_WORKER_TOKEN", ""),
+        scanner_worker_timeout_seconds=_env_int("SCANNER_WORKER_TIMEOUT_SECONDS", 900),
         greenbone_connection=_env("GREENBONE_CONNECTION", "tls").strip().lower(),
         greenbone_host=_env("GREENBONE_HOST", "127.0.0.1"),
         greenbone_port=_env_int("GREENBONE_PORT", 9390),

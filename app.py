@@ -154,6 +154,7 @@ def kryptscan_free_scan_fallback():
         from kryptscan.app.emailer import get_email_sender
         from kryptscan.app.services.scanners.free_preview import FreePreviewScannerProvider
         from kryptscan.app.services.scanners.mock import MockScannerProvider
+        from kryptscan.app.services.scanners.worker import WorkerScannerProvider
         from kryptscan.app.services.ownership import build_scan_protocols, infer_asset_type, normalize_assessment_mode, normalize_target
 
         settings = get_kryptscan_settings()
@@ -259,7 +260,17 @@ def kryptscan_free_scan_fallback():
                     "Safe exploitation boundary: no persistence, no credential theft, no destructive payloads, no data exfiltration",
                     "Evidence-focused validation of reachable vulnerabilities, exposed services, web/API weaknesses, TLS posture, and identity/cloud indicators",
                 ])
-            completed = MockScannerProvider().schedule(normalized_target, asset_type)
+            if settings.scanner_backend in {"worker", "scanner_worker", "kryptscan_worker"}:
+                scanner_backend = "worker"
+                completed = WorkerScannerProvider(settings).schedule(
+                    normalized_target,
+                    asset_type,
+                    assessment_mode=assessment_mode,
+                    scan_tier=scan_tier,
+                    scan_protocols=scan_protocols,
+                )
+            else:
+                completed = MockScannerProvider().schedule(normalized_target, asset_type)
             scope_summary = (
                 f"Client: {engagement_record['client_name']}. Scope: {engagement_record['scope_notes']}. "
                 f"Testing window: {engagement_record['testing_window']}. Authorization: {engagement_record['authorization_reference']}."

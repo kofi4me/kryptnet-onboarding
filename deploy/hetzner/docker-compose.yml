@@ -1,0 +1,97 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kryptnet}
+      POSTGRES_USER: ${POSTGRES_USER:-kryptnet}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - kryptnet_internal
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - kryptnet_internal
+
+  kryptnet-web:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.web
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-kryptnet}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-kryptnet}
+      SCANNER_BACKEND: worker
+      SCANNER_WORKER_URL: http://scanner-worker:9000
+      SCANNER_WORKER_TOKEN: ${SCANNER_WORKER_TOKEN:?set SCANNER_WORKER_TOKEN}
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      - postgres
+      - redis
+      - scanner-worker
+    volumes:
+      - app_reports:/app/instance/kryptscan_reports
+      - app_data:/app/instance
+    networks:
+      - kryptnet_internal
+
+  scanner-worker:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      SCANNER_WORKER_TOKEN: ${SCANNER_WORKER_TOKEN:?set SCANNER_WORKER_TOKEN}
+      ALLOW_PRIVATE_NETWORK_TARGETS: ${ALLOW_PRIVATE_NETWORK_TARGETS:-false}
+      SCANNER_TOOL_TIMEOUT_SECONDS: ${SCANNER_TOOL_TIMEOUT_SECONDS:-180}
+      SCANNER_MAX_OUTPUT_CHARS: ${SCANNER_MAX_OUTPUT_CHARS:-20000}
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 512
+    mem_limit: 6g
+    cpus: "3.0"
+    volumes:
+      - scanner_output:/tmp
+    networks:
+      - kryptnet_internal
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    depends_on:
+      - kryptnet-web
+      - scanner-worker
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - certbot_www:/var/www/certbot
+      - letsencrypt:/etc/letsencrypt
+    networks:
+      - kryptnet_internal
+
+volumes:
+  postgres_data:
+  redis_data:
+  app_reports:
+  app_data:
+  scanner_output:
+  certbot_www:
+  letsencrypt:
+
+networks:
+  kryptnet_internal:
+    driver: bridge

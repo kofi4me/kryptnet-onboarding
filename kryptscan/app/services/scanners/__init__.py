@@ -5,6 +5,7 @@ from kryptscan.app.services.scanners.free_preview import FreePreviewScannerProvi
 from kryptscan.app.services.scanners.greenbone import GreenboneScannerProvider
 from kryptscan.app.services.scanners.mock import MockScannerProvider
 from kryptscan.app.services.scanners.nuclei import NucleiScannerProvider
+from kryptscan.app.services.scanners.worker import WorkerScannerProvider
 
 
 def greenbone_is_available() -> bool:
@@ -44,5 +45,7 @@ def get_scanner_provider(settings, backend_name: str | None = None):
         return EthicalToolkitScannerProvider(settings)
     if selected_backend == "nuclei":
         return NucleiScannerProvider(settings)
+    if selected_backend in {"worker", "scanner_worker", "kryptscan_worker"}:
+        return WorkerScannerProvider(settings)
     return MockScannerProvider()
 
