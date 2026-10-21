@@ -98,19 +98,6 @@ class Settings:
     prowler_path: str
     scoutsuite_path: str
     cloud_checks_enabled: bool
-    kryptguard_console_url: str
-    kryptguard_agent_release_ready: bool
-    kryptguard_agent_allow_unsigned_testing: bool
-    kryptguard_agent_version: str
-    kryptguard_agent_channel: str
-    kryptguard_agent_published_at: str
-    kryptguard_agent_setup_url: str
-    kryptguard_agent_setup_sha256: str
-    kryptguard_agent_setup_size_mb: int
-    kryptguard_agent_msi_url: str
-    kryptguard_agent_msi_sha256: str
-    kryptguard_agent_msi_size_mb: int
-    kryptguard_agent_signed: bool
     kryptnet_payment_api_url: str
     kryptnet_payment_webhook_secret: str
     payment_demo_mode: bool
@@ -202,19 +189,6 @@ def get_settings() -> Settings:
         prowler_path=_env("PROWLER_PATH", "prowler"),
         scoutsuite_path=_env("SCOUTSUITE_PATH", "ScoutSuite"),
         cloud_checks_enabled=_env_bool("CLOUD_CHECKS_ENABLED", False),
-        kryptguard_console_url=_env("KRYPTGUARD_CONSOLE_URL", "https://kryptguard.kryptnet.org"),
-        kryptguard_agent_release_ready=_env_bool("KRYPTGUARD_AGENT_RELEASE_READY", False),
-        kryptguard_agent_allow_unsigned_testing=_env_bool("KRYPTGUARD_AGENT_ALLOW_UNSIGNED_TESTING", False),
-        kryptguard_agent_version=_env("KRYPTGUARD_AGENT_VERSION", "0.5.0"),
-        kryptguard_agent_channel=_env("KRYPTGUARD_AGENT_CHANNEL", "stable"),
-        kryptguard_agent_published_at=_env("KRYPTGUARD_AGENT_PUBLISHED_AT", ""),
-        kryptguard_agent_setup_url=_env("KRYPTGUARD_AGENT_SETUP_URL", ""),
-        kryptguard_agent_setup_sha256=_env("KRYPTGUARD_AGENT_SETUP_SHA256", ""),
-        kryptguard_agent_setup_size_mb=_env_int("KRYPTGUARD_AGENT_SETUP_SIZE_MB", 0),
-        kryptguard_agent_msi_url=_env("KRYPTGUARD_AGENT_MSI_URL", ""),
-        kryptguard_agent_msi_sha256=_env("KRYPTGUARD_AGENT_MSI_SHA256", ""),
-        kryptguard_agent_msi_size_mb=_env_int("KRYPTGUARD_AGENT_MSI_SIZE_MB", 0),
-        kryptguard_agent_signed=_env_bool("KRYPTGUARD_AGENT_SIGNED", False),
         kryptnet_payment_api_url=_env("KRYPTNET_PAYMENT_API_URL", "https://payments.kryptnet.com/api"),
         kryptnet_payment_webhook_secret=_env("KRYPTNET_PAYMENT_WEBHOOK_SECRET", ""),
         payment_demo_mode=_env_bool("PAYMENT_DEMO_MODE", False),

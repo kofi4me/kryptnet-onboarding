@@ -11,7 +11,7 @@ from sqlite3 import Row
 from urllib.parse import urlparse
 
 from fastapi import BackgroundTasks, Depends, FastAPI, HTTPException, Request, Response, status
-from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.trustedhost import TrustedHostMiddleware
@@ -127,29 +127,12 @@ async def security_middleware(request: Request, call_next):
 
 
 def _assert_secure_config() -> None:
-    production = settings.app_env in {"production", "prod"}
-    if production and settings.app_secret == "development-secret":
+    if settings.app_env in {"production", "prod"} and settings.app_secret == "development-secret":
         raise RuntimeError("Set APP_SECRET to a strong unique value before running in production.")
-    if production and settings.payment_demo_mode:
+    if settings.app_env in {"production", "prod"} and settings.payment_demo_mode:
         raise RuntimeError("PAYMENT_DEMO_MODE must be false in production.")
-    if production and not settings.kryptnet_payment_webhook_secret:
+    if settings.app_env in {"production", "prod"} and not settings.kryptnet_payment_webhook_secret:
         raise RuntimeError("Set KRYPTNET_PAYMENT_WEBHOOK_SECRET before running in production.")
-    if production and not _is_secure_release_url(settings.kryptguard_console_url):
-        raise RuntimeError("KRYPTGUARD_CONSOLE_URL must use HTTPS in production.")
-    if production and settings.kryptguard_agent_allow_unsigned_testing:
-        raise RuntimeError("KRYPTGUARD_AGENT_ALLOW_UNSIGNED_TESTING must be false in production.")
-    if production and settings.kryptguard_agent_release_ready:
-        if not settings.kryptguard_agent_signed:
-            raise RuntimeError("KRYPTGUARD_AGENT_SIGNED must be true before publishing the agent in production.")
-        if not _is_secure_release_url(settings.kryptguard_agent_setup_url):
-            raise RuntimeError("KRYPTGUARD_AGENT_SETUP_URL must use HTTPS before publishing the agent.")
-        if not _valid_sha256(settings.kryptguard_agent_setup_sha256):
-            raise RuntimeError("KRYPTGUARD_AGENT_SETUP_SHA256 must be a 64-character SHA-256 value.")
-        msi_configured = bool(settings.kryptguard_agent_msi_url or settings.kryptguard_agent_msi_sha256)
-        if msi_configured and not _is_secure_release_url(settings.kryptguard_agent_msi_url):
-            raise RuntimeError("KRYPTGUARD_AGENT_MSI_URL must use HTTPS when an MSI is published.")
-        if msi_configured and not _valid_sha256(settings.kryptguard_agent_msi_sha256):
-            raise RuntimeError("KRYPTGUARD_AGENT_MSI_SHA256 must be a 64-character SHA-256 value.")
 
 
 def _client_ip(request: Request) -> str:
@@ -316,78 +299,6 @@ def _serialize_audit_event(row: Row) -> AuditEventSummary:
         details=json.loads(row["details_json"] or "{}"),
         created_at=row["created_at"],
     )
-
-
-def _is_secure_release_url(value: str) -> bool:
-    if not value:
-        return False
-    parsed = urlparse(value)
-    return parsed.scheme == "https" and bool(parsed.netloc)
-
-
-def _valid_sha256(value: str) -> bool:
-    return bool(re.fullmatch(r"[a-fA-F0-9]{64}", value.strip()))
-
-
-def _endpoint_agent_release() -> dict:
-    setup_ready = _is_secure_release_url(settings.kryptguard_agent_setup_url) and _valid_sha256(
-        settings.kryptguard_agent_setup_sha256
-    )
-    msi_ready = _is_secure_release_url(settings.kryptguard_agent_msi_url) and _valid_sha256(
-        settings.kryptguard_agent_msi_sha256
-    )
-    testing_release = (
-        settings.app_env not in {"production", "prod"}
-        and settings.kryptguard_agent_allow_unsigned_testing
-    )
-    available = settings.kryptguard_agent_release_ready and setup_ready and (
-        settings.kryptguard_agent_signed or testing_release
-    )
-    return {
-        "product": "KryptNet Endpoint Security Agent",
-        "management_product": "KryptGuard",
-        "version": settings.kryptguard_agent_version,
-        "channel": settings.kryptguard_agent_channel,
-        "published_at": settings.kryptguard_agent_published_at or None,
-        "platform": "Windows 10/11 x64",
-        "publisher": "KryptNet LLC",
-        "signed": settings.kryptguard_agent_signed,
-        "available": available,
-        "release_status": "production" if available and settings.kryptguard_agent_signed else "controlled_testing" if available else "pending",
-        "management_console_url": settings.kryptguard_console_url,
-        "packages": {
-            "setup": {
-                "name": f"KryptNetAgentSetup-{settings.kryptguard_agent_version}.exe",
-                "format": "EXE",
-                "recommended": True,
-                "configured": setup_ready,
-                "size_mb": settings.kryptguard_agent_setup_size_mb or None,
-                "sha256": settings.kryptguard_agent_setup_sha256.lower() if setup_ready else None,
-                "download_url": "/api/endpoint-agent/download/setup" if available else None,
-            },
-            "msi": {
-                "name": f"KryptNetAgent-{settings.kryptguard_agent_version}-x64.msi",
-                "format": "MSI",
-                "recommended": False,
-                "configured": msi_ready,
-                "size_mb": settings.kryptguard_agent_msi_size_mb or None,
-                "sha256": settings.kryptguard_agent_msi_sha256.lower() if msi_ready else None,
-                "download_url": "/api/endpoint-agent/download/msi" if available and msi_ready else None,
-            },
-        },
-        "requirements": [
-            "Windows 10 or Windows 11, x64",
-            "Administrator approval through Windows UAC",
-            "A fresh one-time enrollment token from KryptGuard",
-            "HTTPS access to the KryptGuard management service",
-        ],
-        "capabilities": [
-            "Endpoint malware scanning and quarantine",
-            "Managed prevention and security policy",
-            "Network and process security telemetry",
-            "Remote response, updates, and audit records",
-        ],
-    }
 
 
 def _audit(connection, user: Row, action: str, details: dict | None = None) -> None:
@@ -982,53 +893,6 @@ def scanner_health(user: Row = Depends(get_current_user)) -> dict:
         "missing": len(tools) - available,
         "tools": tools,
     }
-
-
-@app.get("/api/endpoint-agent/release")
-def endpoint_agent_release(user: Row = Depends(get_current_user)) -> dict:
-    _require_owner_or_analyst(user)
-    _require_completed_registration(user)
-    return _endpoint_agent_release()
-
-
-@app.get("/api/endpoint-agent/download/{package_name}")
-def endpoint_agent_download(
-    package_name: str,
-    request: Request,
-    user: Row = Depends(get_current_user),
-) -> RedirectResponse:
-    _require_owner_or_analyst(user)
-    _require_completed_registration(user)
-    _rate_limit(request, "endpoint_agent.download", limit=20, window_seconds=60 * 60)
-    release = _endpoint_agent_release()
-    if not release["available"]:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="The signed endpoint-agent release is not available for download yet.",
-        )
-    package_urls = {
-        "setup": settings.kryptguard_agent_setup_url,
-        "msi": settings.kryptguard_agent_msi_url,
-    }
-    if package_name not in package_urls or not package_urls[package_name]:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Agent package not found.")
-    with get_connection() as connection:
-        _audit(
-            connection,
-            user,
-            "endpoint_agent.download",
-            {
-                "package": package_name,
-                "version": release["version"],
-                "channel": release["channel"],
-                "signed": release["signed"],
-            },
-        )
-    return RedirectResponse(
-        package_urls[package_name],
-        status_code=status.HTTP_307_TEMPORARY_REDIRECT,
-        headers={"Cache-Control": "no-store"},
-    )
 
 
 @app.post("/api/auth/request-code")
