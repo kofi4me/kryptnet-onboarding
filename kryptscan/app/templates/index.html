@@ -10,7 +10,7 @@
       href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="./static/styles.css" />
+    <link rel="stylesheet" href="./static/styles.css?v=20261021-endpoint-agent" />
   </head>
   <body>
     <div class="page-aura"></div>
@@ -239,7 +239,7 @@
               <h2>Select a KryptNet service.</h2>
               <p class="inline-copy">
                 Start with a free vulnerability test, run a paid full vulnerability assessment,
-                or request ethical pen-testing.
+                request ethical pen-testing, or deploy managed endpoint protection.
               </p>
             </div>
             <button id="choice-logout-button" class="ghost">Log Out</button>
@@ -257,6 +257,117 @@
               <span>Vulnerability Assessment</span>
               <small>Test-mode deeper scan. Payment is temporarily skipped.</small>
             </button>
+            <button type="button" id="endpoint-agent-choice" class="mode-card endpoint-choice-card">
+              <span>KryptNet Endpoint Protection</span>
+              <small>Enroll Windows devices, install the managed agent, and connect protection telemetry to KryptGuard.</small>
+            </button>
+          </div>
+        </article>
+      </section>
+
+      <section id="endpoint-agent-page" class="dashboard hidden">
+        <article class="panel endpoint-command-panel">
+          <div class="section-head command-head">
+            <div>
+              <div class="eyebrow">Managed Endpoint Protection</div>
+              <h2>Deploy KryptNet Endpoint Security</h2>
+              <p class="inline-copy">
+                Install proactive endpoint defense, enroll the device in KryptGuard, and verify protection before handoff.
+              </p>
+            </div>
+            <div class="endpoint-top-actions">
+              <button id="endpoint-agent-back-button" type="button" class="ghost">Back to Services</button>
+              <button id="endpoint-agent-logout-button" type="button" class="ghost">Log Out</button>
+            </div>
+          </div>
+
+          <section class="endpoint-release-hero" aria-labelledby="endpoint-release-heading">
+            <div>
+              <div id="endpoint-release-status" class="endpoint-release-badge pending">Checking release</div>
+              <h3 id="endpoint-release-heading">Windows Agent</h3>
+              <p id="endpoint-release-message" class="inline-copy">Loading the current approved release from KryptNet.</p>
+            </div>
+            <dl class="endpoint-meta-grid">
+              <div><dt>Version</dt><dd id="endpoint-agent-version">-</dd></div>
+              <div><dt>Channel</dt><dd id="endpoint-agent-channel">-</dd></div>
+              <div><dt>Platform</dt><dd id="endpoint-agent-platform">-</dd></div>
+              <div><dt>Publisher</dt><dd id="endpoint-agent-publisher">-</dd></div>
+              <div><dt>Signature</dt><dd id="endpoint-agent-signature">-</dd></div>
+            </dl>
+          </section>
+
+          <div class="endpoint-action-row">
+            <a id="endpoint-management-console" class="button-link" href="https://kryptguard.kryptnet.org" target="_blank" rel="noopener noreferrer">
+              Open KryptGuard Management
+            </a>
+            <span>Generate a one-time enrollment token before installing the agent.</span>
+          </div>
+
+          <section class="endpoint-workflow" aria-labelledby="endpoint-workflow-heading">
+            <div class="section-head">
+              <div>
+                <div class="eyebrow">Deployment Workflow</div>
+                <h3 id="endpoint-workflow-heading">From enrollment to verified protection.</h3>
+              </div>
+            </div>
+            <ol class="endpoint-flow">
+              <li><strong>1</strong><span><b>Create enrollment</b>Open KryptGuard and issue a short-lived token for the correct organization.</span></li>
+              <li><strong>2</strong><span><b>Download package</b>Choose the guided setup EXE or enterprise MSI deployment package.</span></li>
+              <li><strong>3</strong><span><b>Install and connect</b>Enter the organization, management server, and one-time token in Setup.</span></li>
+              <li><strong>4</strong><span><b>Verify protection</b>Setup checks the Windows service, health status, and management connection.</span></li>
+            </ol>
+          </section>
+
+          <section class="endpoint-packages" aria-labelledby="endpoint-packages-heading">
+            <div class="section-head">
+              <div>
+                <div class="eyebrow">Approved Packages</div>
+                <h3 id="endpoint-packages-heading">Choose an installation method.</h3>
+              </div>
+            </div>
+            <div class="endpoint-package-grid">
+              <article class="endpoint-package-card">
+                <div class="package-kind">Recommended</div>
+                <h4 id="endpoint-setup-name">Windows Setup EXE</h4>
+                <p>Guided installation with enrollment validation, readiness checks, live progress, and post-install health verification.</p>
+                <dl class="package-details">
+                  <div><dt>Size</dt><dd id="endpoint-setup-size">-</dd></div>
+                  <div><dt>SHA-256</dt><dd id="endpoint-setup-sha" class="hash-value">-</dd></div>
+                </dl>
+                <button id="endpoint-setup-download" type="button" disabled>Download Setup</button>
+              </article>
+              <article class="endpoint-package-card">
+                <div class="package-kind enterprise">Enterprise</div>
+                <h4 id="endpoint-msi-name">Windows Installer MSI</h4>
+                <p>Managed deployment package for approved IT automation, device-management, and silent-install workflows.</p>
+                <dl class="package-details">
+                  <div><dt>Size</dt><dd id="endpoint-msi-size">-</dd></div>
+                  <div><dt>SHA-256</dt><dd id="endpoint-msi-sha" class="hash-value">-</dd></div>
+                </dl>
+                <button id="endpoint-msi-download" type="button" disabled>Download MSI</button>
+              </article>
+            </div>
+          </section>
+
+          <section class="endpoint-capability-layout">
+            <div>
+              <div class="eyebrow">Protection Included</div>
+              <h3>Endpoint capabilities</h3>
+              <ul id="endpoint-capabilities" class="endpoint-check-list">
+                <li>Loading release capabilities...</li>
+              </ul>
+            </div>
+            <div>
+              <div class="eyebrow">System Readiness</div>
+              <h3>Installation requirements</h3>
+              <ul id="endpoint-requirements" class="endpoint-check-list">
+                <li>Loading system requirements...</li>
+              </ul>
+            </div>
+          </section>
+
+          <div id="endpoint-agent-message" class="status-card neutral" role="status" aria-live="polite">
+            Checking the approved endpoint release.
           </div>
         </article>
       </section>
@@ -531,7 +642,7 @@
       </section>
     </main>
 
-    <script src="./static/app.js?v=20260712-engagement-ops-retest"></script>
+    <script src="./static/app.js?v=20261021-endpoint-agent"></script>
   </body>
 </html>
 

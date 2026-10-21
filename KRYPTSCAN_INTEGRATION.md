@@ -57,6 +57,7 @@ KRYPTSCAN_TRUSTED_HOSTS=kryptscan.kryptnet.org,*.kryptnet.org,*.onrender.com
 OPENAI_API_KEY=<openai-api-key>
 KRYPTNET_PAYMENT_WEBHOOK_SECRET=<payment-webhook-secret>
 KRYPTNET_PAYMENT_API_URL=<payment-checkout-base-url>
+KRYPTGUARD_CONSOLE_URL=https://kryptguard.kryptnet.org
 ```
 
 Use `KRYPTSCAN_APP_ENV=staging` while testing. Change it to `production` only after SMTP and payment webhook secrets are configured.
@@ -114,6 +115,41 @@ The FastAPI backend is mounted internally at:
 ```
 
 The browser JavaScript sends API calls there automatically.
+
+## Endpoint Agent Delivery
+
+Authenticated owners and analysts can open **KryptNet Endpoint Protection** from the KryptScan service picker. The deployment workspace provides a direct handoff to KryptGuard for one-time enrollment and audited downloads for the current Windows Setup EXE and MSI packages.
+
+Store release packages in private, HTTPS-capable object storage or a protected release CDN. KryptScan does not commit large installer binaries or reveal the configured storage URLs in its API; downloads pass through an authenticated audit endpoint and then redirect to the approved object.
+
+Configure these Render variables only after the files have been built and verified:
+
+```env
+KRYPTGUARD_AGENT_VERSION=0.5.0
+KRYPTGUARD_AGENT_CHANNEL=stable
+KRYPTGUARD_AGENT_PUBLISHED_AT=<ISO-8601-release-time>
+KRYPTGUARD_AGENT_SETUP_URL=https://<trusted-download-host>/KryptNetAgentSetup-0.5.0.exe
+KRYPTGUARD_AGENT_SETUP_SHA256=<64-character-sha256>
+KRYPTGUARD_AGENT_SETUP_SIZE_MB=<size-in-megabytes>
+KRYPTGUARD_AGENT_MSI_URL=https://<trusted-download-host>/KryptNetAgent-0.5.0-x64.msi
+KRYPTGUARD_AGENT_MSI_SHA256=<64-character-sha256>
+KRYPTGUARD_AGENT_MSI_SIZE_MB=<size-in-megabytes>
+KRYPTGUARD_AGENT_SIGNED=true
+KRYPTGUARD_AGENT_RELEASE_READY=true
+```
+
+Production refuses to start with `KRYPTGUARD_AGENT_RELEASE_READY=true` when the release is not marked signed or when a package URL is not HTTPS. Leave both release flags false until Authenticode signing and final verification are complete.
+
+For a controlled non-production test only, set:
+
+```env
+KRYPTSCAN_APP_ENV=staging
+KRYPTGUARD_AGENT_ALLOW_UNSIGNED_TESTING=true
+KRYPTGUARD_AGENT_SIGNED=false
+KRYPTGUARD_AGENT_RELEASE_READY=true
+```
+
+Never enable unsigned testing in production. The installer still requires an enrollment token issued in KryptGuard; KryptScan authentication is intentionally not reused as an agent enrollment credential.
 
 ## Future Upgrade
 

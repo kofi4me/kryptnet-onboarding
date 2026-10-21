@@ -6,6 +6,7 @@
   assessmentMode: "vulnerability_assessment",
   scanTier: "free_preview",
   selectedService: "free_preview",
+  endpointAgentRelease: null,
   refreshTimer: null,
 };
 
@@ -27,6 +28,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   bindEvent("logout-button", "click", handleLogout);
   bindEvent("choice-logout-button", "click", handleLogout);
+  bindEvent("endpoint-agent-logout-button", "click", handleLogout);
+  bindEvent("endpoint-agent-choice", "click", showEndpointAgentPage);
+  bindEvent("endpoint-agent-back-button", "click", showToolChoicePage);
+  bindEvent("endpoint-setup-download", "click", () => downloadEndpointAgent("setup"));
+  bindEvent("endpoint-msi-download", "click", () => downloadEndpointAgent("msi"));
   bindEvent("report-download-button", "click", () => {
     if (state.activeScanId) downloadReport(state.activeScanId);
   });
@@ -39,8 +45,10 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("[data-choice-mode]").forEach((button) => {
     button.addEventListener("click", () => openSelectedTool(button.dataset.choiceMode, button.dataset.choiceTier));
   });
-  handleVerificationRedirect();
-  loadDashboard(false, { showChoiceWhenAuthenticated: true });
+  const redirectHandled = handleVerificationRedirect();
+  if (!redirectHandled) {
+    loadDashboard(false, { showChoiceWhenAuthenticated: true });
+  }
 });
 
 function routeParam(name) {
@@ -72,7 +80,7 @@ function jsonHeaders() {
 }
 
 function showOnly(sectionId) {
-  ["landing-page", "verification-page", "registration-page", "tool-choice-page", "dashboard"].forEach((id) => {
+  ["landing-page", "verification-page", "registration-page", "tool-choice-page", "endpoint-agent-page", "dashboard"].forEach((id) => {
     const element = document.getElementById(id);
     if (element) element.classList.toggle("hidden", id !== sectionId);
   });
@@ -122,6 +130,7 @@ function handleVerificationRedirect() {
       showOnly("landing-page");
     }
   }
+  return Boolean(sent || verified || error);
 }
 
 function showToolChoicePage() {
@@ -137,6 +146,129 @@ function showRegistrationPage() {
 function showDashboardPage() {
   showOnly("dashboard");
   window.location.hash = "dashboard";
+}
+
+async function showEndpointAgentPage() {
+  showOnly("endpoint-agent-page");
+  window.location.hash = "endpoint-agent";
+  await loadEndpointAgentRelease();
+}
+
+async function loadEndpointAgentRelease() {
+  setStatus("endpoint-agent-message", "Checking the approved endpoint release.", "neutral");
+  try {
+    const response = await fetch(apiPath("/api/endpoint-agent/release"), {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (response.status === 401) {
+      showOnly("landing-page");
+      setStatus("auth-status", "Your session expired. Sign in again to access endpoint deployment.", "error");
+      return;
+    }
+    if (!response.ok) {
+      throw new Error(payload.detail || "The endpoint release could not be loaded.");
+    }
+    state.endpointAgentRelease = payload;
+    renderEndpointAgentRelease(payload);
+  } catch (error) {
+    state.endpointAgentRelease = null;
+    renderEndpointAgentRelease(null);
+    setStatus(
+      "endpoint-agent-message",
+      error instanceof Error ? error.message : "The endpoint release could not be loaded.",
+      "error"
+    );
+  }
+}
+
+function renderEndpointAgentRelease(release) {
+  const setText = (id, value) => {
+    const element = document.getElementById(id);
+    if (element) element.textContent = value || "-";
+  };
+  const consoleLink = document.getElementById("endpoint-management-console");
+  const releaseBadge = document.getElementById("endpoint-release-status");
+  const releaseMessage = document.getElementById("endpoint-release-message");
+  const setupButton = document.getElementById("endpoint-setup-download");
+  const msiButton = document.getElementById("endpoint-msi-download");
+  const setup = release?.packages?.setup || {};
+  const msi = release?.packages?.msi || {};
+
+  setText("endpoint-agent-version", release?.version);
+  setText("endpoint-agent-channel", release?.channel ? titleCase(release.channel) : "-");
+  setText("endpoint-agent-platform", release?.platform);
+  setText("endpoint-agent-publisher", release?.publisher);
+  setText("endpoint-agent-signature", release ? (release.signed ? "Digitally signed" : "Not signed") : "-");
+  setText("endpoint-setup-name", setup.name || "Windows Setup EXE");
+  setText("endpoint-setup-size", formatPackageSize(setup.size_mb));
+  setText("endpoint-setup-sha", setup.sha256 || "Published with an approved release");
+  setText("endpoint-msi-name", msi.name || "Windows Installer MSI");
+  setText("endpoint-msi-size", formatPackageSize(msi.size_mb));
+  setText("endpoint-msi-sha", msi.sha256 || "Published with an approved release");
+
+  if (consoleLink && release?.management_console_url) {
+    consoleLink.href = release.management_console_url;
+  }
+  if (setupButton) setupButton.disabled = !setup.download_url;
+  if (msiButton) msiButton.disabled = !msi.download_url;
+
+  if (releaseBadge) {
+    releaseBadge.className = `endpoint-release-badge ${release?.available ? "ready" : "pending"}`;
+    releaseBadge.textContent = release?.available
+      ? release.release_status === "production" ? "Production release" : "Controlled test release"
+      : "Release pending";
+  }
+  if (releaseMessage) {
+    releaseMessage.textContent = release?.available
+      ? `Version ${release.version} is approved for authenticated download and managed deployment.`
+      : "Downloads remain locked until the release is complete, verified, and approved for this environment.";
+  }
+
+  renderEndpointList("endpoint-capabilities", release?.capabilities, "Capability details will appear with the approved release.");
+  renderEndpointList("endpoint-requirements", release?.requirements, "Requirements will appear with the approved release.");
+  if (release) {
+    setStatus(
+      "endpoint-agent-message",
+      release.available
+        ? "The approved package is ready. Create a one-time enrollment token in KryptGuard before downloading."
+        : "The package is being held for release approval. KryptScan will enable downloads automatically when the signed artifacts are configured.",
+      release.available ? "success" : "neutral"
+    );
+  }
+}
+
+function renderEndpointList(elementId, items, fallback) {
+  const element = document.getElementById(elementId);
+  if (!element) return;
+  const values = Array.isArray(items) && items.length ? items : [fallback];
+  element.replaceChildren(...values.map((value) => {
+    const item = document.createElement("li");
+    item.textContent = value;
+    return item;
+  }));
+}
+
+function downloadEndpointAgent(packageName) {
+  const packageData = state.endpointAgentRelease?.packages?.[packageName];
+  if (!packageData?.download_url) {
+    setStatus("endpoint-agent-message", "This package is not approved for download yet.", "error");
+    return;
+  }
+  setStatus("endpoint-agent-message", `Preparing ${packageData.name}...`, "neutral");
+  window.location.assign(apiPath(packageData.download_url));
+}
+
+function formatPackageSize(value) {
+  const size = Number(value);
+  return Number.isFinite(size) && size > 0 ? `${size.toLocaleString()} MB` : "Published at release";
+}
+
+function titleCase(value) {
+  return String(value)
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function openSelectedTool(mode, tier = null) {
@@ -695,6 +827,7 @@ async function handleLogout() {
   state.dashboard = null;
   state.activeReport = null;
   state.activeScanId = null;
+  state.endpointAgentRelease = null;
   showOnly("landing-page");
   setStatus("auth-status", "You have been logged out.", "neutral");
 }
